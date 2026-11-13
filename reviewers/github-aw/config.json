@@ -1,0 +1,7 @@
+{
+  "status": "implemented",
+  "model": "copilot/gpt-6.1-sol",
+  "auth": "GitHub Copilot subscription through github-aw Codex engine",
+  "deployment": "managed agent sandbox; project MCP tools in main-branch image",
+  "compiler": "1.2.2"
+}

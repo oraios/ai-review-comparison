@@ -1,0 +1,6 @@
+description: "Read-only directory inspection for the PR review demo."
+prompt: "Inspect the project through list_dir. Do not request onboarding or edits."
+excluded_tools: []
+included_optional_tools: []
+fixed_tools:
+  - list_dir

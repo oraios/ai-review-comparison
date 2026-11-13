@@ -1,0 +1,6 @@
+{
+  "status": "blocked",
+  "model": "claude-acp (unverified)",
+  "auth": "Claude subscription only",
+  "reason": "SUBSCRIPTION_CI: headless Claude ACP OAuth inheritance, tool restriction and MCP forwarding require authenticated validation."
+}

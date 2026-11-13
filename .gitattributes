@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.png binary
+
+
+.github/workflows/*.lock.yml linguist-generated=true

@@ -1,0 +1,29 @@
+{
+  "name": "ai-review-comparison",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node demo/server.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "check": "node scripts/check-fixture.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "demo:regression": "node scripts/regression.mjs",
+    "demo:local": "node scripts/local-demo.mjs",
+    "review:local": "node scripts/local-review.mjs",
+    "setup-ci-secrets": "node scripts/setup-ci-secrets.mjs",
+    "demo-review-on-gh": "node scripts/demo-review-on-gh.mjs",
+    "check:workflows": "node scripts/check-workflows.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "playwright": "1.65.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "yaml": "2.9.1"
+  }
+}

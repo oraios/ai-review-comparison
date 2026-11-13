@@ -1,0 +1,45 @@
+# Route an authorized label to one review workflow on main. No PR checkout or code execution.
+# The receiving workflow verifies the router run and snapshots only validated fixture data.
+name: Route review label
+on:
+  pull_request_target:
+    types: [labeled]
+permissions:
+  contents: read
+  pull-requests: read
+  actions: write
+jobs:
+  route:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Authorize the label setter and dispatch
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const workflows = {
+              'review:claude': 'review-claude.yml',
+              'review:copilot': 'review-copilot.yml',
+              'review:opencode': 'review-opencode.yml',
+              'review:openhands': 'review-openhands.yml',
+              'review:github-aw': 'aw-codex.lock.yml',
+            };
+            const workflow_id = workflows[context.payload.label?.name];
+            if (!workflow_id) return;
+            const pr = context.payload.pull_request;
+            const repo = `${context.repo.owner}/${context.repo.repo}`;
+            if (pr.state !== 'open' || pr.base.ref !== 'main' ||
+                pr.head.repo?.full_name.toLowerCase() !== repo.toLowerCase()) {
+              throw new Error('Only open same-repository PRs targeting main are accepted.');
+            }
+            const { data: access } = await github.rest.repos.getCollaboratorPermissionLevel({
+              ...context.repo, username: context.actor,
+            });
+            if (!['admin', 'maintain', 'write'].includes(access.permission)) {
+              throw new Error('The label setter must have repository write access.');
+            }
+            await github.rest.actions.createWorkflowDispatch({
+              ...context.repo, workflow_id, ref: 'main',
+              inputs: { pr_number: String(pr.number), label_run_id: String(context.runId) },
+            });
+            core.notice(`Dispatched ${workflow_id} for PR #${pr.number}`);

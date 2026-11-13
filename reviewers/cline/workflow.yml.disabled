@@ -1,0 +1,7 @@
+# NON-RUNNABLE PROTOTYPE — intentionally outside .github/workflows
+# BLOCKED: SUBSCRIPTION_CI: no established authorized unattended public-OSS ChatGPT credential flow.
+# Intended runner: ubuntu-latest; container: main-built GHCR digest.
+# Intended trigger: maintainer workflow_dispatch with validated same-repository fixture PR.
+# Intended tools: project.review_context, serena.list_dir, project.run_checks, project.submit_review.
+# Promotion requires authorized subscription CI + real image/MCP/check/PR evidence.
+# No jobs or trigger are defined; there is no provider-API fallback.

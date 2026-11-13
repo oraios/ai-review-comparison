@@ -1,0 +1,6 @@
+{
+  "status": "implemented",
+  "model": "sonnet",
+  "auth": "Claude Pro/Max OAuth",
+  "secret": "CLAUDE_CODE_OAUTH_TOKEN"
+}

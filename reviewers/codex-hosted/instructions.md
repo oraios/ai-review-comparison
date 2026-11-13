@@ -1,0 +1,1 @@
+Use the host's review or task interface. Identify the service (OpenAI Cloud or GitHub Codex agent), selected model, inspected commit, actual tools available, and checks performed. If Serena or the custom Docker environment is unavailable, say so. A useful static review can still be compared, but cannot establish tool execution.

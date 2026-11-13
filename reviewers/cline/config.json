@@ -1,0 +1,6 @@
+{
+  "status": "blocked",
+  "model": "openai-codex (not enabled)",
+  "auth": "subscription only",
+  "reason": "SUBSCRIPTION_CI: no established authorized unattended public-OSS ChatGPT credential flow."
+}
