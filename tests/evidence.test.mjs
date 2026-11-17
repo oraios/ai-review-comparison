@@ -28,12 +28,12 @@ test('a configured MCP server or echoed static marker is insufficient', () => {
   events[2].result.browser.executed = false;
   assert.throws(() => validateSubmission(review, events));
 });
-test('a tag, local run, wrong architecture or stale image cannot qualify as evidence', () => {
+test('a tag, local run, wrong architecture or malformed revision cannot qualify as evidence', () => {
   const environment = { image: `ghcr.io/o/r/review-env@sha256:${'a'.repeat(64)}`, marker: 'REVIEW_IMAGE_OK_2026',
     revision: 'b'.repeat(40), platform: 'linux', arch: 'x64' };
-  validateImage(environment, 'b'.repeat(40));
-  for (const changed of [{ image: 'ghcr.io/o/r:main' }, { marker: 'LOCAL_ONLY' }, { arch: 'arm64' }, { revision: 'c'.repeat(40) }]) {
-    assert.throws(() => validateImage({ ...environment, ...changed }, 'b'.repeat(40)));
+  validateImage(environment);
+  for (const changed of [{ image: 'ghcr.io/o/r:main' }, { marker: 'LOCAL_ONLY' }, { arch: 'arm64' }, { revision: 'main' }]) {
+    assert.throws(() => validateImage({ ...environment, ...changed }));
   }
 });
 

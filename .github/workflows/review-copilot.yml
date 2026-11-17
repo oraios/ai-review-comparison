@@ -14,21 +14,11 @@ concurrency:
   group: review-copilot-${{ github.event.issue.number || github.event.pull_request.number }}
   cancel-in-progress: false
 jobs:
-  image:
+  copilot:
     if: >-
       (github.event.issue.pull_request || github.event_name == 'pull_request_review_comment') &&
       startsWith(github.event.comment.body, '/copilot') &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    outputs:
-      name: ${{ steps.image.outputs.name }}
-    steps:
-      - id: image
-        shell: bash
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}/review-env:main" >> "$GITHUB_OUTPUT"
-  copilot:
-    needs: image
+      github.event.comment.user.type == 'User'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -37,7 +27,7 @@ jobs:
       issues: write
       packages: read
     container:
-      image: ${{ needs.image.outputs.name }}
+      image: ghcr.io/oraios/ai-review-comparison/review-env:main
       credentials:
         username: ${{ github.actor }}
         password: ${{ github.token }}
@@ -51,14 +41,21 @@ jobs:
       COMMENT_KIND: ${{ github.event_name == 'pull_request_review_comment' && 'review-thread' || 'conversation' }}
       COMMENT_BODY: ${{ github.event.comment.body }}
     steps:
-      - name: Acknowledge the request
+      - name: Require write access and acknowledge the request
+        env:
+          COMMENTER: ${{ github.event.comment.user.login }}
         run: |
+          permission=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$COMMENTER/permission" --jq .permission)
+          case "$permission" in admin|maintain|write) ;; *) echo "$COMMENTER has $permission access; write access is required."; exit 1 ;; esac
           kind=$([ "$COMMENT_KIND" = review-thread ] && echo pulls || echo issues)
           gh api "repos/$GITHUB_REPOSITORY/$kind/comments/$COMMENT_ID/reactions" -f content=eyes --silent
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: refs/pull/${{ env.PR_NUMBER }}/head
           fetch-depth: 0
+      - name: Trust the checkout inside the container
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Configure Serena and the prompt
         run: |
           jq -n --arg project "$GITHUB_WORKSPACE" '{mcpServers: {serena: {type: "local", tools: ["*"],

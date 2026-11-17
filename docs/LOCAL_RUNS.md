@@ -79,7 +79,7 @@ npm run review:local -- --reviewer copilot --pr 123
 npm run review:local -- --reviewer claude --pr 123 --repo oraios/ai-review-comparison
 ```
 
-The default is `ghcr.io/OWNER/REPO/review-env:main`. The runner pulls that reference, checks the project marker and Linux/amd64 platform, inspects its content ID, then runs by that immutable local ID. It records the registry digest(s), baked source revision, prompt hash, and actual agent version. It does not require the image source to equal your checkout's HEAD; CI retains that stricter gate.
+The default is `ghcr.io/OWNER/REPO/review-env:main`. The runner pulls that reference, checks the project marker and Linux/amd64 platform, inspects its content ID, then runs by that immutable local ID. It records the registry digest(s), baked source revision, prompt hash, and actual agent version. It does not require the image source to equal your checkout's HEAD; neither does CI, because `[skip-image-build]` pushes reuse an older image.
 
 If GHCR is private, authenticate the Docker client with a credential that has package read access. An eligible `gh` credential can be piped to Docker without putting its value in an argument:
 

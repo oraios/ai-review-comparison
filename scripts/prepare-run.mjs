@@ -19,7 +19,7 @@ export async function prepareRun({ reviewer, inputPath, directory, imagePath = r
     imageRole: 'agent-and-mcp-tools',
     run: local ? 'local' : process.env.GITHUB_RUN_ID, attempt: local ? '1' : process.env.GITHUB_RUN_ATTEMPT,
     ...(localExecution ? { localExecution } : {}) };
-  if (!local) validateImage(environment, input.workflowRevision);
+  if (!local) validateImage(environment);
   await mkdir(resolve(directory, 'project/.serena'), { recursive: true });
   await mkdir(resolve(directory, 'agent-home'), { recursive: true });
   await writeJson(resolve(directory, 'input.json'), input);

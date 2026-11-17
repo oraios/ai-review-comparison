@@ -14,15 +14,15 @@ const image = `ghcr.io/${repo}/review-env@${manifest.digest}`;
 run(['pull', '--platform', 'linux/amd64', image]);
 const inspected = JSON.parse(run(['image', 'inspect', image]))[0];
 const labels = inspected.Config.Labels;
-assert.equal(labels['org.opencontainers.image.revision'], process.env.GITHUB_SHA,
-  'The main image is stale. Wait for Publish review image to finish, then dispatch again from main.');
+// The image may lag main when pushes are marked [skip-image-build].
+assert.match(labels['org.opencontainers.image.revision'] ?? '', /^[a-f0-9]{40}$/);
 assert.equal(labels['org.opencontainers.image.source']?.toLowerCase(), `https://github.com/${repo}`);
 assert.equal(labels['demo.branch'], 'main');
 assert.equal(labels['demo.marker'], imageMarker);
 assert.equal(inspected.Os, 'linux');
 assert.equal(inspected.Architecture, 'amd64');
 await writeJson(resolve('artifacts/input/resolved-image.json'), {
-  image, configDigest: inspected.Id, revision: process.env.GITHUB_SHA, tag, labels,
+  image, configDigest: inspected.Id, revision: labels['org.opencontainers.image.revision'], workflowRevision: process.env.GITHUB_SHA, tag, labels,
 });
 await appendFile(process.env.GITHUB_OUTPUT, `image=${image}\n`);
 await appendFile(process.env.GITHUB_STEP_SUMMARY, `\nReview image resolved from main: \`${image}\`\n`);

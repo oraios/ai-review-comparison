@@ -30,7 +30,7 @@ export async function publishResult(result, { env = process.env, request = githu
   assert.equal(result.environment.imageRole, 'agent-and-mcp-tools');
   assert.equal(result.environment.run, env.GITHUB_RUN_ID);
   assert.equal(result.environment.attempt, env.GITHUB_RUN_ATTEMPT);
-  validateImage(result.environment, env.GITHUB_SHA);
+  validateImage(result.environment);
   validateSubmission(result.review, audit);
   const { repository: repo, number, head } = result.input;
   const files = await request(`/repos/${repo}/pulls/${number}/files?per_page=100`);

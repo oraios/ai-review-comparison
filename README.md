@@ -19,9 +19,11 @@ npm run setup-ci-secrets
 npm run demo-review-on-gh
 ```
 
-Setup configures GitHub and waits for the images published from `main`. The demo creates one PR per selected reviewer, requests its review and prints the resulting URLs. Claude and Copilot are requested with a PR comment (`@claude Review this PR.`, `/copilot Review this PR.`); OpenCode with the `review:opencode` label. Each workflow starts Serena inside the project image. [Credentials and first-run setup](docs/SETUP.md)
+Setup configures GitHub and waits for the review image published from `main`. The demo creates one PR per selected reviewer, requests its review and prints the resulting URLs. Claude and Copilot are requested with a PR comment (`@claude Review this PR.`, `/copilot Review this PR.`); OpenCode with the `review:opencode` label. Each workflow starts Serena inside the project image, `ghcr.io/oraios/ai-review-comparison/review-env:main`. In a fork, change that image name in `review-claude.yml` and `review-copilot.yml`. [Credentials and first-run setup](docs/SETUP.md)
 
-Each reviewer posts a summary in the PR conversation and attaches findings to the relevant changed lines in **Files changed**. Findings without an available diff line appear in the summary.
+Each reviewer posts a summary in the PR conversation and attaches findings to the relevant changed lines in **Files changed**. OpenCode's separate publish job does this deterministically; Claude and Copilot are instructed to do it and post themselves.
+
+Pushes to `main` rebuild the image. Put `[skip-image-build]` in the last commit message of a push to keep the previous image, for example for docs or workflow changes.
 
 ## Ask a reviewer on a PR
 
@@ -37,4 +39,4 @@ Each reviewer uses its own trigger. Claude uses its native mention; Copilot uses
 @claude Which test supports your finding? Cite the observed result.
 ```
 
-A request from someone with write access starts a fresh session on the current PR head. Claude and Copilot read the earlier discussion themselves and answer in the same conversation or thread. They may run the project's checks but never push. [Triggers in detail](docs/TRIGGER_MATRIX.md)
+A request from someone with write access starts a fresh session on the current PR head. Claude and Copilot read the earlier discussion themselves and answer in the same conversation or thread. They may run the project's checks; their job token cannot push. [Triggers in detail](docs/TRIGGER_MATRIX.md)

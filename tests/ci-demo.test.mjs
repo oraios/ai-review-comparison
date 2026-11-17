@@ -182,6 +182,16 @@ test('setup waits for the newly dispatched image when a previous attempt just fa
   assert.equal(dispatched, 1);
 });
 
+test('a [skip-image-build] push reuses the last image published from main', async () => {
+  const skipped = { id: 3, head_sha: main, status: 'completed', conclusion: 'skipped' };
+  const previous = { id: 2, head_sha: head, status: 'completed', conclusion: 'success', html_url: 'https://example.test/build/2' };
+  let dispatched = 0;
+  const config = { repo, timeout: 100, gh: () => { dispatched++; },
+    api: path => ({ workflow_runs: path.includes('status=success') ? [previous] : [skipped] }) };
+  assert.equal((await ensureImage(config, main, { sleep: async () => {}, now: () => 0 })).id, 2);
+  assert.equal(dispatched, 0);
+});
+
 test('demo PR uses main, one small JSON diff, and no local git mutations', () => {
   const calls = [];
   const config = { repo, api: (path, body, method) => {

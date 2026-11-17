@@ -9,7 +9,7 @@ try {
   const input = await readJson(resolve(directory, 'input.json'));
   const environment = await readJson(resolve(directory, 'environment.json'));
   if (environment.imageRole !== 'agent-and-mcp-tools') throw new Error('Comparator tools image cannot qualify as an agent-image run.');
-  validateImage(environment, input.workflowRevision);
+  validateImage(environment);
   if (process.env.AGENT_OUTCOME !== 'success') throw new Error('AUTH_OR_AGENT: credential preflight or reviewer invocation failed. See the failed step.');
   const review = validateSubmission(await readJson(resolve(directory, 'review.json')), await readAudit(directory));
   result = { status: 'READY_TO_PUBLISH', input, environment, review,

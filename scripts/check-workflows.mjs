@@ -46,17 +46,18 @@ for (const file of await readdir(resolve(root, '.github/workflows'))) {
     assert.ok(workflow.on.issue_comment && workflow.on.pull_request_review_comment, file);
     assert.ok(!workflow.on.pull_request && !workflow.on.workflow_dispatch, file);
     const [agent] = Object.values(workflow.jobs).filter(job => job.container);
-    assert.equal(agent.container.image, '${{ needs.image.outputs.name }}');
+    assert.equal(agent.container.image, 'ghcr.io/oraios/ai-review-comparison/review-env:main');
+    assert.ok(agent.steps.some(step => step.run?.includes('safe.directory')), 'Git in the job container must trust the checkout.');
     assert.equal(agent.permissions.contents, 'read', 'Reviewers answer and comment; they do not push.');
     assert.equal(agent.permissions['pull-requests'], 'write');
-    const trigger = Object.values(workflow.jobs).find(job => job.if)?.if ?? '';
+    const trigger = agent.if ?? '';
     if (name === 'claude') {
       const action = agent.steps.find(step => step.uses?.startsWith('anthropics/claude-code-action@'));
       assert.ok(!action.with.prompt, 'Without a prompt the action reads the @claude comment.');
       assert.ok(trigger.includes("'@claude'"));
       assert.ok(action.with.claude_args.includes(`--model ${settings.model} --effort ${settings.effort} `));
     } else {
-      assert.ok(trigger.includes(`'/${name}'`) && trigger.includes('author_association'), 'Comment command needs a write-access gate.');
+      assert.ok(trigger.includes(`'/${name}'`) && text.includes('/permission') && /admin|maintain|write/.test(text), 'Comment command needs a write-access gate.');
       assert.ok(text.includes(`--model ${settings.model} --reasoning-effort ${settings.effort} `));
     }
   }

@@ -10,7 +10,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build:
-    if: github.ref == 'refs/heads/main'
+    # Pushes whose last commit message contains [skip-image-build] keep the previous image.
+    if: github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip-image-build]')
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:

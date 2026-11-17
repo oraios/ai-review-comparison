@@ -15,21 +15,13 @@ concurrency:
   group: review-claude-${{ github.event.issue.number || github.event.pull_request.number }}
   cancel-in-progress: false
 jobs:
-  image:
+  claude:
+    # The action ignores comments without @claude itself; this job-level filter (as in the upstream
+    # example workflow) avoids starting a runner and pulling the image for every other comment.
     if: >-
       (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude'))
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    outputs:
-      name: ${{ steps.image.outputs.name }}
-    steps:
-      - id: image
-        shell: bash
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}/review-env:main" >> "$GITHUB_OUTPUT"
-  claude:
-    needs: image
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -39,14 +31,15 @@ jobs:
       packages: read
       actions: read
     container:
-      image: ${{ needs.image.outputs.name }}
+      image: ghcr.io/oraios/ai-review-comparison/review-env:main
       credentials:
         username: ${{ github.actor }}
         password: ${{ github.token }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
+      - name: Trust the checkout inside the container
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Configure Serena for the checked-out project
         shell: bash
         run: |

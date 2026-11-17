@@ -44,10 +44,10 @@ export function validateSubmission(value, events) {
   }
   return review;
 }
-export function validateImage(environment, expectedRevision) {
+// The image may predate main: pushes marked [skip-image-build] reuse the last published image.
+export function validateImage(environment) {
   assert.match(environment.image, /^ghcr\.io\/[a-z0-9_./-]+@sha256:[a-f0-9]{64}$/);
   assert.equal(environment.marker, imageMarker);
-  assert.equal(environment.revision, expectedRevision);
   assert.equal(environment.platform, 'linux');
   assert.equal(environment.arch, 'x64');
   assert.match(environment.revision, /^[a-f0-9]{40}$/);

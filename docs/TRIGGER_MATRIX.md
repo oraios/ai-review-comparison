@@ -10,13 +10,13 @@
 
 `review-claude.yml` runs Claude Code Action without a `prompt` input, which puts it in its interactive mode. The comment that mentions `@claude` is the prompt. The action checks that the commenter has write access, checks out the PR head, adds the PR body, diff and discussion to the context, shows progress in a tracking comment and answers there. In an inline thread it replies in that thread. Line-specific findings are posted with the action's inline-comment tool.
 
-The workflow adds the project image, Serena MCP and review guidance (`review/INSTRUCTIONS.md`) through `claude_args`. The job token can comment but not push.
+The job runs in the project image; `claude_args` adds Serena MCP and review guidance (`review/INSTRUCTIONS.md`). The job token can comment but not push.
 
 ## Copilot CLI: `/copilot`
 
 `@copilot` in a PR starts GitHub's own Copilot cloud agent, which makes commits, and native Copilot code review does not read replies to its comments. This demo therefore uses a slash command. `review-copilot.yml` reproduces what the Claude action does itself:
 
-- the job starts only for `/copilot` comments from an owner, member or collaborator;
+- the job starts for comments beginning with `/copilot` and stops unless the commenter has write, maintain or admin permission;
 - it reacts with 👀, checks out the PR head and starts Serena in the project image;
 - the prompt names the PR and comment; Copilot reads the PR and discussion with `gh`;
 - Copilot posts a summary with `gh pr comment` and inline findings through the review-comments API, or replies in the inline thread it was asked in.

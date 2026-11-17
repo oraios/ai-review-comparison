@@ -86,7 +86,7 @@ test('local preparation and evidence stay separate from hosted PASS', async () =
     const environment = await prepareRun({ reviewer: 'claude', directory, inputPath: resolve(directory, 'seed.json'),
       local: true, localExecution: { runtime: 'native' }, serenaCommand: 'serena' });
     assert.equal(environment.run, 'local');
-    assert.throws(() => validateImage(environment, head));
+    assert.throws(() => validateImage(environment));
     const context = await audit(directory, 'project.review_context', { marker });
     const serena = await audit(directory, 'serena.list_dir', { upstream: { files: ['pricing.json'] } });
     const checks = await audit(directory, 'project.run_checks', {

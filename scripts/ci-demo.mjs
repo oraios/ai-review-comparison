@@ -91,6 +91,12 @@ export async function ensureImage(config, main, { sleep = delay, now = Date.now 
   const runs = config.api(path).workflow_runs;
   const ready = runs.find(run => run.head_sha === main && run.conclusion === 'success');
   if (ready) { console.log(`Image build already succeeded: ${ready.html_url}`); return ready; }
+  const current = runs.filter(run => run.head_sha === main);
+  if (current.length && current.every(run => run.conclusion === 'skipped')) {
+    // [skip-image-build] push: reuse the last image published from main.
+    const [latest] = config.api(`/repos/${config.repo}/actions/workflows/build-image.yml/runs?branch=main&status=success&per_page=1`).workflow_runs;
+    if (latest) { console.log(`Image build skipped for ${main}; using the image from ${latest.head_sha}: ${latest.html_url}`); return latest; }
+  }
   let run = runs.find(item => item.head_sha === main && item.status !== 'completed');
   const previousIds = new Set(runs.map(item => item.id));
   const started = now();
