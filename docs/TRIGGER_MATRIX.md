@@ -1,33 +1,32 @@
 # Trigger a review on GitHub
 
-| Reviewer | Initial label | Follow-up in a PR conversation | Manual workflow |
-| --- | --- | --- | --- |
-| Claude Code | `review:claude` | `/review claude QUESTION` | `review-claude.yml` |
-| Copilot CLI | `review:copilot` | `/review copilot QUESTION` | `review-copilot.yml` |
-| OpenCode | `review:opencode` | `/review opencode QUESTION` | `review-opencode.yml` |
+| Reviewer | Request a review or ask a question | Workflow |
+| --- | --- | --- |
+| Claude Code | `@claude QUESTION` in a PR comment, inline review comment or review body | `review-claude.yml` |
+| Copilot CLI | `/copilot QUESTION` at the start of a PR comment or inline review comment | `review-copilot.yml` |
+| OpenCode | `review:opencode` label, or `/review opencode QUESTION` as a new top-level PR comment | `review-opencode.yml` via `review-label.yml` |
 
-## Initial review
+## Claude Code: native `@claude`
 
-`npm run demo-review-on-gh` creates and labels one PR per selected reviewer. On an existing eligible PR, a repository collaborator with write, maintain or admin access can apply the corresponding label. The authorizations apply equally to private and public repositories. Opening a PR starts the ordinary CI checks.
+`review-claude.yml` runs Claude Code Action without a `prompt` input, which puts it in its interactive mode. The comment that mentions `@claude` is the prompt. The action checks that the commenter has write access, checks out the PR head, adds the PR body, diff and discussion to the context, shows progress in a tracking comment and answers there. In an inline thread it replies in that thread. Line-specific findings are posted with the action's inline-comment tool.
 
-## Ask a follow-up
+The workflow adds the project image, Serena MCP and review guidance (`review/INSTRUCTIONS.md`) through `claude_args`. The job token can comment but not push.
 
-Post a new comment in the PR’s **Conversation** tab. Start at the beginning of the comment and name one reviewer.
+## Copilot CLI: `/copilot`
 
-```text
-/review claude Recheck your previous finding against the latest commit. What evidence changed?
-```
+`@copilot` in a PR starts GitHub's own Copilot cloud agent, which makes commits, and native Copilot code review does not read replies to its comments. This demo therefore uses a slash command. `review-copilot.yml` reproduces what the Claude action does itself:
 
-The question can span several lines, up to 4,000 characters. Omit it to request another review. Each comment starts a fresh agent session with the current snapshot, the maintainer’s question and the previous review from that provider when available. The answer appears in a new PR review with fresh evidence. These review workflows produce findings and answers. They do not push fixes.
+- the job starts only for `/copilot` comments from an owner, member or collaborator;
+- it reacts with 👀, checks out the PR head and starts Serena in the project image;
+- the prompt names the PR and comment; Copilot reads the PR and discussion with `gh`;
+- Copilot posts a summary with `gh pr comment` and inline findings through the review-comments API, or replies in the inline thread it was asked in.
 
-The router listens for newly created conversation comments. Post a new comment after a new commit, when correcting a request or when retrying a failed run. A new push runs fixture CI. Commit-message tags, mentions and Git tags do not dispatch a reviewer. Inline diff replies, edited comments and vendor-specific mentions are outside this router. Only open same-repository demo PRs targeting `main` pass preflight.
+## OpenCode: label router
 
-## Manual dispatch
-
-A maintainer can choose **Actions → Review / PROVIDER → Run workflow** or use GitHub CLI. Supply the PR number and leave the internal router fields empty. Select `main` for each reviewer.
+OpenCode keeps the original pipeline: `review-label.yml` routes the `review:opencode` label or a `/review opencode` comment to `review-opencode.yml` through `workflow_dispatch`. That workflow reviews the numeric fixture with project MCP tools in a read-only job, and a separate job validates the evidence and publishes. Edited comments, inline replies and commit-message tags do not dispatch it. A maintainer can also dispatch it manually:
 
 ```sh
-gh workflow run review-copilot.yml --ref main -f pr_number=123
+gh workflow run review-opencode.yml --ref main -f pr_number=123
 ```
 
-The reviewer uses a read-only GitHub token. A separate job validates the MCP evidence and confirms the PR still points to the reviewed commit before it posts. [Setup](SETUP.md) · [Security model](SECURITY.md)
+[Setup](SETUP.md) · [Security model](SECURITY.md)

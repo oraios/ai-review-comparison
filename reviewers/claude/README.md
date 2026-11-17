@@ -6,6 +6,15 @@
 CLAUDE_CODE_OAUTH_TOKEN=your-subscription-token
 ```
 
-**Initial review.** Run the [two demo commands](../../docs/SETUP.md). The demo applies `review:claude`. A maintainer can apply that label to an eligible existing PR, or dispatch `review-claude.yml` on `main` with `pr_number`. The Action launches Claude inside the pinned project image with the project and Serena MCP servers. A separate job publishes its review.
+**Trigger.** Mention `@claude` in a PR conversation comment, an inline review comment or a review body. The comment is the prompt, so the same trigger starts a review and asks a follow-up:
 
-**Follow-up.** Post a new conversation comment such as `/review claude Which assumption does your finding depend on?`. A new session sees the current head, question and previous Claude review when available. After pushing commits, post the command again or reapply the label. Commit-message tags, inline replies and native `@claude` mentions do not trigger this configured workflow. [Trigger reference](../../docs/TRIGGER_MATRIX.md)
+```text
+@claude Review this PR.
+@claude Which assumption does your finding depend on?
+```
+
+The demo posts the first comment for you. [Workflow](../../.github/workflows/review-claude.yml)
+
+**How it runs.** The workflow uses the action's interactive mode (no `prompt` input), as in the [upstream setup](https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md). The action checks the commenter's write access, checks out the PR head, gathers the PR context and answers in a tracking comment or in the inline thread. The job runs in the project image. `claude_args` adds Serena MCP, Bash for the project's checks, the inline-comment tool and a short reviewer prompt that points to [review/INSTRUCTIONS.md](../../review/INSTRUCTIONS.md). The job token can comment but not push.
+
+**Local runs.** `npm run review:local -- --reviewer claude` still uses the fixture MCP pipeline with [prompt.md](prompt.md) and [run.mjs](run.mjs). [Local runs](../../docs/LOCAL_RUNS.md)

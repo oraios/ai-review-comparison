@@ -1,4 +1,5 @@
-# Route maintainer labels and /review comments to a workflow on main.
+# Route maintainer labels and /review opencode comments to the OpenCode workflow on main.
+# Claude (@claude) and Copilot (/copilot) workflows listen to PR comments themselves.
 name: Route PR review request
 on:
   issue_comment:
@@ -20,8 +21,6 @@ jobs:
         with:
           script: |
             const workflows = {
-              'review:claude': 'review-claude.yml',
-              'review:copilot': 'review-copilot.yml',
               'review:opencode': 'review-opencode.yml',
             };
             const comment = context.payload.comment;

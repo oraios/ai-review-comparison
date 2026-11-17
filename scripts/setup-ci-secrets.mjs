@@ -1,6 +1,6 @@
 // Configure repository prerequisites, then wait for the trusted main image before creating PRs.
 import { configuration, requiredSettings, inspectRepository, establishLabels, ensureImage } from './ci-demo.mjs';
-import { providers } from './providers.mjs';
+import { labelled } from './providers.mjs';
 import { writeJson } from './lib.mjs';
 
 export async function setup(config, { save = writeJson } = {}) {
@@ -8,7 +8,7 @@ export async function setup(config, { save = writeJson } = {}) {
   if (config.dryRun) {
     console.log(JSON.stringify({ repository: config.repo, reviewers: config.selected, secretNames: secrets,
       variableNames: ['DEMO_REVIEWERS'], missingSettings: missing,
-      labels: Object.values(providers).map(p => p.label), image: 'main', mutations: false }, null, 2));
+      labels: Object.values(labelled).map(p => p.label), image: 'main', mutations: false }, null, 2));
     return;
   }
   const { main, files } = inspectRepository(config, { admin: true });

@@ -14,13 +14,13 @@ const repo = 'owner/repo';
 const main = 'a'.repeat(40);
 const head = 'b'.repeat(40);
 const pricing = { sha: 'c'.repeat(40), content: Buffer.from('{\n  "freeShippingMinCents": 5000,\n  "shippingCents": 499\n}\n').toString('base64') };
-const env = { GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_REF: 'refs/heads/main', REVIEWER: 'claude',
+const env = { GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_REF: 'refs/heads/main', REVIEWER: 'opencode',
   GITHUB_ACTOR: 'github-actions[bot]', GITHUB_TRIGGERING_ACTOR: 'github-actions[bot]', ROUTER_RUN_ID: '123' };
 function authorizationRequest(overrides = {}) {
   return async path => {
     if (path.includes('/actions/runs/')) return { workflow_id: 7, event: 'pull_request_target', path: '.github/workflows/review-label.yml', repository: { full_name: repo }, actor: { login: 'maintainer' }, ...overrides.run };
     if (path.includes('/actions/workflows/')) return { id: 7 };
-    if (path.includes('/pulls/')) return { labels: [{ name: 'review:claude' }], ...overrides.pr };
+    if (path.includes('/pulls/')) return { labels: [{ name: 'review:opencode' }], ...overrides.pr };
     return { permission: overrides.permission ?? 'write' };
   };
 }
@@ -43,12 +43,12 @@ test('manual dispatch and reruns both require maintainer access', async () => {
 
 test('a follow-up must be an unedited maintainer command on this PR for this reviewer', async () => {
   const comment = { user: { login: 'maintainer', type: 'User' }, issue_url: `https://api.github.com/repos/${repo}/issues/1`,
-    body: '/review claude Explain the new evidence.', created_at: 't1', updated_at: 't1' };
+    body: '/review opencode Explain the new evidence.', created_at: 't1', updated_at: 't1' };
   const check = (changes = {}) => authorizeDispatch({ repo, number: 1, env: { ...env, COMMENT_ID: '12' },
     request: path => path.includes('/issues/comments/') ? { ...comment, ...changes } :
       authorizationRequest({ run: { event: 'issue_comment' } })(path) });
   assert.deepEqual(await check(), { author: 'maintainer', commentId: '12', question: 'Explain the new evidence.' });
-  for (const changes of [{ updated_at: 't2' }, { user: { login: 'other' } }, { body: '/review copilot Hello' },
+  for (const changes of [{ updated_at: 't2' }, { user: { login: 'other' } }, { body: '/review claude Hello' },
     { issue_url: `https://api.github.com/repos/${repo}/issues/2` }]) await assert.rejects(check(changes));
 });
 
@@ -147,14 +147,14 @@ test('setup configures the selected subscription credential through stdin only',
   assert.equal(secrets.length, 1);
   assert.equal(secrets[0].input, 'synthetic-secret');
   assert.ok(config.commands.every(command => !command.args.join(' ').includes('synthetic-secret')));
-  assert.equal(config.commands.filter(command => command.args[0] === 'label').length, 3);
+  assert.deepEqual(config.commands.filter(command => command.args[0] === 'label').map(command => command.args[2]), ['review:opencode']);
   assert.deepEqual(config.commands.filter(command => command.args[0] === 'variable').map(command => command.args[2]), ['DEMO_REVIEWERS']);
 });
 
 test('remote setup refuses a missing main workflow before creating any PR', () => {
   const config = fakeConfig();
   const api = config.api;
-  config.api = (path, ...args) => { if (path.includes('review-label.yml')) throw new Error('404'); return api(path, ...args); };
+  config.api = (path, ...args) => { if (path.includes('review-copilot.yml')) throw new Error('404'); return api(path, ...args); };
   assert.throws(() => inspectRepository(config), /push this implementation to main/);
   assert.ok(config.calls.every(call => !call.body));
 });
@@ -205,4 +205,27 @@ test('review waiter requires a bot review of the exact PR head and provider', as
   await awaitReviews(config, manifest, async () => saved++, { now: () => ticks++, sleep: async () => {} });
   assert.equal(count, 2); assert.equal(saved, 1);
   assert.equal(manifest.pulls[0].review, 'https://example.test/review');
+});
+
+test('comment-triggered reviewers are requested by comment, not label', () => {
+  const config = { repo, api: path => path.endsWith('/pulls') ? { number: 9, html_url: 'https://example.test/pr/9' } : { commit: { sha: head } } };
+  assert.deepEqual(Object.keys(createDemoPull(config, 'claude', { main, pricing }, 'u')).filter(key => ['label', 'command'].includes(key)), ['command']);
+  assert.equal(createDemoPull(config, 'claude', { main, pricing }, 'u').command, '@claude Review this PR.');
+  assert.equal(createDemoPull(config, 'copilot', { main, pricing }, 'u').command, '/copilot Review this PR.');
+});
+
+test('review waiter follows the agent workflow run and ignores skipped runs', async () => {
+  let polls = 0, ticks = 0;
+  const manifest = { pulls: [{ provider: 'claude', number: 9, head, url: 'https://example.test/pr/9', command: '@claude Review this PR.', requestedAt: '2026-11-17T00:00:00Z' }] };
+  const skipped = { status: 'completed', conclusion: 'skipped', html_url: 'https://example.test/skipped' };
+  const done = { status: 'completed', conclusion: 'success', html_url: 'https://example.test/run' };
+  const config = { repo, timeout: 100, api: path => {
+    assert.ok(path.includes("review-claude.yml/runs?event=issue_comment&created=%3E%3D2026-11-17T00:00:00Z"), path);
+    return { workflow_runs: ++polls === 1 ? [skipped] : [skipped, done] };
+  } };
+  await awaitReviews(config, manifest, async () => {}, { now: () => ticks++, sleep: async () => {} });
+  assert.equal(manifest.pulls[0].run, 'https://example.test/run');
+  const failed = { pulls: [{ ...manifest.pulls[0], review: undefined }] };
+  await assert.rejects(awaitReviews({ repo, timeout: 100, api: () => ({ workflow_runs: [{ ...done, conclusion: 'failure' }] }) }, failed, async () => {},
+    { now: () => ticks++, sleep: async () => {} }), /claude review failure/);
 });

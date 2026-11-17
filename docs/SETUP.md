@@ -32,11 +32,11 @@ npm run setup-ci-secrets
 npm run demo-review-on-gh
 ```
 
-1. Setup checks the selected credentials, enables the workflows, creates the reviewer labels and uploads the selected secrets. It waits for the successful image build at the current `main` SHA.
-2. The demo creates and labels one PR per selected reviewer. It writes the PR and review URLs under `artifacts/github-demo-*.json`. A second invocation creates a fresh set of PRs.
+1. Setup checks the selected credentials, enables the workflows, creates the `review:opencode` label and uploads the selected secrets. It waits for the successful image build at the current `main` SHA.
+2. The demo creates one PR per selected reviewer and requests its review: an `@claude` or `/copilot` comment, or the OpenCode label. It writes the PR, run and review URLs under `artifacts/github-demo-*.json`. A second invocation creates a fresh set of PRs.
 
-To preview either command, append `-- --dry-run`. Use `-- --no-wait` with the demo to return after labeling. Both commands accept `--env PATH`, `--repo OWNER/REPO`, `--reviewers NAME,NAME` and `--timeout-minutes N`. Rerun setup after pushing a new main revision or changing credentials.
+To preview either command, append `-- --dry-run`. Use `-- --no-wait` with the demo to return after requesting the reviews. Both commands accept `--env PATH`, `--repo OWNER/REPO`, `--reviewers NAME,NAME` and `--timeout-minutes N`. Rerun setup after pushing a new main revision or changing credentials.
 
 ## If a review does not arrive
 
-Open **Actions → Publish review image** for image and gh-aw compilation errors. For a labeled PR or comment, open **Route PR review request**, then the corresponding reviewer run. Check model entitlement and provider quota if inference fails. The publisher checks the PR head again and records GitHub’s review receipt in the publication artifact. A new comment retries an existing PR. [Review triggers](TRIGGER_MATRIX.md) · [Provider authentication](AUTH_MATRIX.md)
+Open **Actions → Publish review image** for image and gh-aw compilation errors. For Claude or Copilot, open **Review / claude** or **Review / copilot**; a run whose jobs were skipped did not match the trigger. For OpenCode, open **Route PR review request**, then **Review / opencode**; its publisher checks the PR head again and records GitHub’s review receipt in the publication artifact. Check model entitlement and provider quota if inference fails. A new comment retries an existing PR. [Review triggers](TRIGGER_MATRIX.md) · [Provider authentication](AUTH_MATRIX.md)

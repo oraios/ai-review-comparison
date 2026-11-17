@@ -1,9 +1,12 @@
-// One registry connects setup, labels, PR creation, and trusted dispatch authorization.
+// One registry connects setup, PR creation and triggers. Claude and Copilot start from a PR
+// comment (their native interactive workflows); OpenCode still uses the label router.
 export const providers = Object.freeze({
-  claude: { label: 'review:claude', color: 'D97757', workflow: 'review-claude.yml', secrets: ['CLAUDE_CODE_OAUTH_TOKEN'] },
-  copilot: { label: 'review:copilot', color: '8250DF', workflow: 'review-copilot.yml', secrets: ['COPILOT_GITHUB_TOKEN'] },
+  claude: { command: '@claude Review this PR.', workflow: 'review-claude.yml', secrets: ['CLAUDE_CODE_OAUTH_TOKEN'] },
+  copilot: { command: '/copilot Review this PR.', workflow: 'review-copilot.yml', secrets: ['COPILOT_GITHUB_TOKEN'] },
   opencode: { label: 'review:opencode', color: '24292F', workflow: 'review-opencode.yml', secrets: ['OPENCODE_GO_API_KEY'] },
 });
+
+export const labelled = Object.freeze(Object.fromEntries(Object.entries(providers).filter(([, provider]) => provider.label)));
 
 export function selectProviders(value = Object.keys(providers).join(',')) {
   const selected = [...new Set(value.split(',').map(s => s.trim()).filter(Boolean))];

@@ -6,12 +6,17 @@
 COPILOT_GITHUB_TOKEN=your-personal-copilot-token
 ```
 
-**Initial review.** Run the [two demo commands](../../docs/SETUP.md). The demo applies `review:copilot`. A maintainer can apply that label to an eligible existing PR. The CLI starts inside the project image, receives the chosen ID through `--model` and uses the project and Serena MCP servers. The Actions run title and published review identify the model.
+**Trigger.** Start a PR conversation comment or an inline review comment with `/copilot`:
 
-**Manual dispatch.** In **Actions → Review / copilot → Run workflow**, select `main` and supply the PR number, or use GitHub CLI.
-
-```sh
-gh workflow run review-copilot.yml --ref main -f pr_number=123
+```text
+/copilot Review this PR.
+/copilot Recheck the latest commit and explain what changed.
 ```
 
-**Follow-up.** Post `/review copilot Recheck the latest commit and explain what changed.` as a new top-level PR comment. After another push, submit a new comment or reapply the label. Commit-message tags and `@copilot` mentions do not dispatch this CLI workflow. GitHub’s managed coding agent has separate triggers. [Trigger reference](../../docs/TRIGGER_MATRIX.md) · [Actions billing](https://docs.github.com/en/copilot/concepts/agent-capabilities/agent-powered-workflows-and-operations/copilot-cli-in-github-actions)
+The demo posts the first comment for you. `@copilot` is not used because GitHub routes it to its own cloud agent, which pushes commits. [Workflow](../../.github/workflows/review-copilot.yml)
+
+**How it runs.** The workflow mirrors Claude Code Action's interactive mode. It accepts commands from owners, members and collaborators, reacts with 👀, checks out the PR head and runs Copilot CLI in the project image with Serena MCP. Copilot reads the PR and discussion with `gh`, may run the project's checks, and posts a summary plus inline findings. In an inline thread it replies in that thread. The job token can comment but not push, and `git push` is denied to the CLI.
+
+**Not native Copilot code review.** GitHub's built-in reviewer (request `@copilot` as a reviewer) can now customize its environment with `copilot-code-review.yml` and use repository MCP settings. It does not answer replies, and running it inside the project image with Serena is unverified. [Copilot code review](https://docs.github.com/en/copilot/how-tos/copilot-on-github/use-copilot-agents/copilot-code-review)
+
+**Local runs.** `npm run review:local -- --reviewer copilot` still uses the fixture MCP pipeline with [prompt.md](prompt.md) and [run.mjs](run.mjs). [Local runs](../../docs/LOCAL_RUNS.md) · [Actions billing](https://docs.github.com/en/copilot/concepts/agent-capabilities/agent-powered-workflows-and-operations/copilot-cli-in-github-actions)

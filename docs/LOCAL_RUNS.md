@@ -2,7 +2,7 @@
 
 Local execution reuses the demo's PR snapshot, custom instructions, MCP servers, pricing/browser checks, and structured review validation. It is useful for trying an agent or changing a prompt before a hosted run. The default local path uses the same Docker image; a native path runs installed tools on your machine.
 
-Local runs produce files and **never publish to GitHub**. They do not emulate Actions jobs, approvals, secrets, or hosted publication. GitHub CLI supplies repository access only; the selected agent still needs its own inference credential.
+Local runs use the fixture pipeline (project MCP tools, receipts, evidence validation) for all three reviewers, including Claude and Copilot, whose GitHub workflows now run their agents directly on the PR. Local runs produce files and **never publish to GitHub**. They do not emulate Actions jobs, approvals, secrets, or hosted publication. GitHub CLI supplies repository access only; the selected agent still needs its own inference credential.
 
 ## Choose a local path
 

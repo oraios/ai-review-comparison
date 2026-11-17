@@ -19,16 +19,22 @@ npm run setup-ci-secrets
 npm run demo-review-on-gh
 ```
 
-Setup configures GitHub and waits for the images published from `main`. The demo creates one PR per selected reviewer, applies its label and prints the resulting review URLs. GitHub starts Serena automatically. [Credentials and first-run setup](docs/SETUP.md)
+Setup configures GitHub and waits for the images published from `main`. The demo creates one PR per selected reviewer, requests its review and prints the resulting URLs. Claude and Copilot are requested with a PR comment (`@claude Review this PR.`, `/copilot Review this PR.`); OpenCode with the `review:opencode` label. Each workflow starts Serena inside the project image. [Credentials and first-run setup](docs/SETUP.md)
 
 Each reviewer posts a summary in the PR conversation and attaches findings to the relevant changed lines in **Files changed**. Findings without an available diff line appear in the summary.
 
-## Request follow-up work on a PR
+## Ask a reviewer on a PR
 
-Post a **new top-level PR conversation comment** beginning with `/review`, the reviewer ID and your question. For example:
+Each reviewer uses its own trigger. Claude uses its native mention; Copilot uses a slash command because GitHub reserves `@copilot` for its cloud agent, which pushes commits.
+
+| Reviewer | Trigger | Where |
+| --- | --- | --- |
+| Claude Code | `@claude QUESTION` anywhere in the comment | PR conversation, inline review threads, review bodies |
+| Copilot CLI | `/copilot QUESTION` at the start of the comment | PR conversation, inline review threads |
+| OpenCode | `/review opencode QUESTION` at the start of the comment | PR conversation |
 
 ```text
-/review copilot Which test supports your finding? Cite the observed result.
+@claude Which test supports your finding? Cite the observed result.
 ```
 
-Use `claude`, `copilot` or `opencode`. A maintainer’s comment starts a fresh review of the current PR head. The reviewer receives the question and its previous review when available, reruns the checks and posts a new PR review. [Labels, comments and manual dispatch](docs/TRIGGER_MATRIX.md)
+A request from someone with write access starts a fresh session on the current PR head. Claude and Copilot read the earlier discussion themselves and answer in the same conversation or thread. They may run the project's checks but never push. [Triggers in detail](docs/TRIGGER_MATRIX.md)

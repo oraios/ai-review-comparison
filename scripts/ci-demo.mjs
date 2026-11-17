@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { parseEnv, parseArgs } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
 import { resolve } from 'node:path';
-import { providers, selectProviders } from './providers.mjs';
+import { providers, labelled, selectProviders } from './providers.mjs';
 import { repository } from './github.mjs';
 import { authenticateGitHub, githubCli, githubCliEnvironment } from './github-cli.mjs';
 import { validatePricing } from '../demo/pricing.mjs';
@@ -69,7 +69,8 @@ export function inspectRepository({ api, repo, selected }, { admin = false } = {
   if (info.default_branch !== 'main') throw new Error('This demo requires main as the default branch.');
   if (admin ? !info.permissions?.admin : !info.permissions?.push) throw new Error(`Repository ${admin ? 'admin' : 'write'} access is required.`);
   const main = api(`/repos/${repo}/git/ref/heads/main`).object.sha;
-  const files = ['build-image.yml', 'review-label.yml', ...selected.map(name => providers[name].workflow)];
+  const router = selected.some(name => providers[name].label) ? ['review-label.yml'] : [];
+  const files = ['build-image.yml', ...router, ...selected.map(name => providers[name].workflow)];
   for (const file of files) {
     try { api(`/repos/${repo}/contents/.github/workflows/${file}?ref=${main}`); }
     catch { throw new Error(`Missing workflow ${file} on remote main. Commit and push this implementation to main first.`); }
@@ -81,7 +82,7 @@ export function inspectRepository({ api, repo, selected }, { admin = false } = {
 }
 
 export function establishLabels({ gh, repo }) {
-  for (const [name, provider] of Object.entries(providers)) gh(['label', 'create', provider.label, '--repo', repo,
+  for (const [name, provider] of Object.entries(labelled)) gh(['label', 'create', provider.label, '--repo', repo,
     '--color', provider.color, '--description', `Run ${name} review of the controlled fixture`, '--force']);
 }
 

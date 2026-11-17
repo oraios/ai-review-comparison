@@ -2,7 +2,13 @@
 
 The automated workflows use a controlled fixture. Hosted comparisons are a separate trust boundary. This repository does not provide a sandbox for arbitrary executable pull requests with long-lived provider credentials.
 
-The numbered controls below describe the three ordinary image workflows.
+## Claude and Copilot comment workflows
+
+`review-claude.yml` and `review-copilot.yml` follow the vendors' standard setup instead of the controls below. A comment from someone with write access starts the agent in the project image on a checkout of the PR head. The agent has normal tools (shell, file reads, Serena) and a job token that can comment on the PR but cannot push. The provider credential is in the same job as PR content, so a prompt injection in a PR could try to exfiltrate it; the write-access gate and GitHub's withholding of secrets from fork-triggered runs limit who can attempt that. Fork PR heads are checked out when a collaborator asks for a review, so ask only on PRs you are willing to run.
+
+## OpenCode fixture pipeline
+
+The numbered controls below describe the OpenCode workflow and the local runners.
 
 1. Only a main-branch maintainer dispatch or a verified label-router dispatch can enter a reviewer workflow. Both actor identities are checked. The `pull_request_target: labeled` router has no checkout or inference secrets and only dispatches fixed workflows. Preparation resolves a bot dispatch back to its router run and checks the human label setter/rerun actor and current label. PRs must be open, target main, come from this repository and modify only the numeric pricing JSON. Parsing rejects unknown keys, non-integers, excessive lengths and out-of-range values.
 2. No PR checkout, hooks, instructions, MCP config, scripts, URLs or browser content enter the credentialed job. Trusted application and test code are baked in the main-built image. Only the validated numbers are substituted. Normal PR CI is a separate credential-free workflow.

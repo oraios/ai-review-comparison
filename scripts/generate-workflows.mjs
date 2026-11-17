@@ -1,4 +1,5 @@
-// Independent workflows accept manual dispatch or dispatch from the trusted label router.
+// The OpenCode workflow accepts manual dispatch or dispatch from the trusted label router.
+// Claude and Copilot workflows are hand-written and listen to PR comments directly.
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { root } from './lib.mjs';
@@ -15,31 +16,10 @@ const checkout = `      - uses: ${pins.checkout}
           ref: ${expr('github.sha')}
           persist-credentials: false`;
 const artifactFiles = ['result.json', 'environment.json', 'review.json', 'mcp.jsonl', 'checks.json', 'smoke.png'];
-for (const reviewer of ['claude', 'copilot', 'opencode']) {
+for (const reviewer of ['opencode']) {
   const settings = JSON.parse(await readFile(resolve(root, 'reviewers', reviewer, 'config.json'), 'utf8'));
-  if (reviewer === 'claude' && !/^[a-z0-9.-]+$/.test(settings.model)) throw new Error('Invalid Claude model ID.');
-  const secret = { claude: 'CLAUDE_CODE_OAUTH_TOKEN', copilot: 'COPILOT_GITHUB_TOKEN', opencode: 'OPENCODE_GO_API_KEY' }[reviewer];
-  const agentStep = reviewer === 'claude' ? `      - name: Claude Code Action (subscription only)
-        id: agent
-        uses: anthropics/claude-code-action@4d75e5f390ee76b2e09c1980ecc99ff3a2e088c8 # v1
-        with:
-          claude_code_oauth_token: ${expr('secrets.CLAUDE_CODE_OAUTH_TOKEN')}
-          github_token: ${expr('github.token')}
-          path_to_claude_code_executable: /opt/review-demo/image/agents/node_modules/.bin/claude
-          path_to_bun_executable: /opt/review-demo/image/agents/node_modules/.bin/bun
-          allowed_bots: 'github-actions'
-          track_progress: 'false'
-          use_sticky_comment: 'false'
-          show_full_output: 'false'
-          use_commit_signing: 'false'
-          prompt: ${expr('steps.prompt.outputs.text')}
-          claude_args: >-
-            --model ${settings.model} --effort ${settings.effort} --max-turns 12 --permission-mode default --tools ""
-            --strict-mcp-config --mcp-config /tmp/review-run/mcp.json
-            --allowedTools mcp__project__review_context,mcp__project__run_checks,mcp__project__submit_review,mcp__serena__list_dir
-        env:
-          CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1'
-          DISABLE_AUTOUPDATER: '1'` : `      - name: ${reviewer === 'copilot' ? 'Copilot CLI (personal subscription)' : 'OpenCode CLI (Go subscription)'}
+  const secret = 'OPENCODE_GO_API_KEY';
+  const agentStep = `      - name: OpenCode CLI (Go subscription)
         id: agent
         env:
           ${secret}: ${expr('secrets.' + secret)}
@@ -141,13 +121,7 @@ ${checkout}
             echo 'BLOCKED: AUTH_MISSING — configure ${secret}'
             exit 1
           fi
-${reviewer === 'claude' ? `      - name: Load trusted review prompt
-        id: prompt
-        run: |
-          echo 'text<<REVIEW_PROMPT_END' >> "$GITHUB_OUTPUT"
-          cat /tmp/review-run/prompt.txt >> "$GITHUB_OUTPUT"
-          echo 'REVIEW_PROMPT_END' >> "$GITHUB_OUTPUT"
-` : ''}${agentStep}
+${agentStep}
       - name: Validate evidence (never claims PASS before publication)
         if: always()
         env:
