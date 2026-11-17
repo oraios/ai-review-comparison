@@ -12,7 +12,7 @@ export function reviewBody(result) {
   return [`<!-- ai-review-demo:${env.reviewer}:${input.head}:${env.run}:${env.attempt} -->`,
     `## AI review demo · ${env.reviewer}`, `Model: \`${env.model}\` · Auth: \`${env.auth}\``,
     `Version manifest: \`${JSON.stringify(env.versions)}\``, `Commit: \`${input.head}\``,
-    `${env.imageRole === 'mcp-tools' ? 'MCP tools image (agent runs in github-aw managed sandbox)' : 'Agent and MCP image'}: \`${env.image}\``, `Image source: \`${env.revision}\` · Marker: \`${env.marker}\``,
+    `Agent and MCP image: \`${env.image}\``, `Image source: \`${env.revision}\` · Marker: \`${env.marker}\``,
     `MCP: context marker consumed; real Serena list_dir consumed; unit + Chromium checks executed.`,
     `Checks: unit **${review.observedUnitStatus}**, browser **${review.observedBrowserStatus}**.`,
     safe(review.summary), ...review.findings.map(f => `### [${f.severity}] ${safe(f.title)}\n\n\`demo/pricing.json\`\n\n${safe(f.body)}`),
@@ -21,12 +21,11 @@ export function reviewBody(result) {
 }
 
 export async function publishResult(result, { env = process.env, request = github, audit }) {
-  const comparator = env.REVIEWER === 'github-aw';
-  assert.equal(result.status, comparator ? 'COMPARATOR_EVIDENCE_VERIFIED' : 'READY_TO_PUBLISH');
+  assert.equal(result.status, 'READY_TO_PUBLISH');
   assert.equal(result.input.repository, repository(env.GITHUB_REPOSITORY));
   assert.equal(result.input.number, prNumber(env.PR_NUMBER));
   assert.equal(result.environment.reviewer, env.REVIEWER);
-  assert.equal(result.environment.imageRole, comparator ? 'mcp-tools' : 'agent-and-mcp-tools');
+  assert.equal(result.environment.imageRole, 'agent-and-mcp-tools');
   assert.equal(result.environment.run, env.GITHUB_RUN_ID);
   assert.equal(result.environment.attempt, env.GITHUB_RUN_ATTEMPT);
   validateImage(result.environment, env.GITHUB_SHA);
@@ -40,7 +39,7 @@ export async function publishResult(result, { env = process.env, request = githu
     method: 'POST', body: JSON.stringify({ commit_id: head, event: 'COMMENT', body: reviewBody(result) }),
   });
   assert.ok(published.id && published.html_url, 'No GitHub publication receipt.');
-  result.status = comparator ? 'COMPARATOR_REVIEW_PUBLISHED' : 'PASS';
+  result.status = 'PASS';
   result.evidence.published = true;
   result.publication = { id: published.id, url: published.html_url, commit: head };
   return result;

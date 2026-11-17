@@ -1,0 +1,15 @@
+# Build with docker buildx bake gh-aw --load. Named stages come from docker-bake.hcl.
+# The official AWF Dockerfile builds FROM the demo image. AWF mounts the runner's
+# /opt over /host/opt. Place the demo's own runtime and fixture in the agent's view.
+FROM project AS payload
+RUN cp -L "$(command -v node)" /tmp/review-node \
+    && cp -L /usr/lib/x86_64-linux-gnu/libatomic.so.1 /tmp/libatomic.so.1
+
+FROM firewall
+COPY --from=payload /tmp/review-node /host/review-demo/bin/node
+COPY --from=payload /tmp/libatomic.so.1 /host/review-demo/lib/libatomic.so.1
+COPY --from=project /opt/review-demo/demo /host/review-demo/demo
+COPY --from=project /opt/review-demo/scripts/check-fixture.mjs /host/review-demo/scripts/check-fixture.mjs
+COPY --from=project /opt/review-demo/image/provenance.json /host/review-demo/image/provenance.json
+RUN /host/review-demo/bin/node -p 'require("node:crypto").randomUUID()' > /host/review-demo/runtime-id
+COPY --chmod=755 image/check-agent.sh /host/review-demo/check

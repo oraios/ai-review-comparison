@@ -6,55 +6,60 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { resolve } from 'node:path';
 import { providers, selectProviders } from './providers.mjs';
 import { repository } from './github.mjs';
+import { authenticateGitHub, githubCli, githubCliEnvironment } from './github-cli.mjs';
 import { validatePricing } from '../demo/pricing.mjs';
 
-export async function configuration(argv = process.argv.slice(2), environment = process.env) {
+export async function configuration(argv = process.argv.slice(2), environment = process.env, { validateSettings = false } = {}) {
   const { values } = parseArgs({ args: argv, options: {
     env: { type: 'string', default: '.env' }, repo: { type: 'string' }, reviewers: { type: 'string' },
     'dry-run': { type: 'boolean', default: false }, 'no-wait': { type: 'boolean', default: false },
-    'timeout-minutes': { type: 'string', default: '45' },
+    'timeout-minutes': { type: 'string', default: '90' },
   } });
   let file;
   try { file = parseEnv(await readFile(resolve(values.env), 'utf8')); }
   catch (error) { if (error.code !== 'ENOENT') throw error; file = {}; }
   const env = { ...environment, ...Object.fromEntries(Object.entries(file).filter(([, v]) => v.trim())) };
-  const selected = selectProviders(values.reviewers ?? env.DEMO_REVIEWERS);
+  const configured = env.DEMO_REVIEWERS?.split(',').map(name => name.trim());
+  const retired = configured?.filter(name => ['openhands', 'github-aw'].includes(name)) ?? [];
+  if (values.reviewers === undefined && retired.length) console.warn(`Ignoring retired reviewers in .env: ${retired.join(', ')}.`);
+  const selected = selectProviders(values.reviewers ?? configured?.filter(name => !retired.includes(name)).join(','));
+  if (validateSettings && !values['dry-run']) requiredSettings({ env, selected });
   const timeout = Number(values['timeout-minutes']) * 60_000;
   if (!Number.isFinite(timeout) || timeout < 60_000 || timeout > 7_200_000) throw new Error('Timeout must be 1–120 minutes.');
   // Keep inference credentials out of child gh processes, including OS inheritance.
-  const ghEnv = Object.fromEntries(Object.entries(environment).filter(([key]) =>
-    ![...Object.values(providers).flatMap(p => p.secrets), 'GH_TOKEN', 'GITHUB_TOKEN'].includes(key)));
+  const ghEnv = githubCliEnvironment(environment);
+  let repo = values.repo ?? env.GITHUB_REPOSITORY;
+  if (!repo) {
+    try {
+      const origin = execFileSync('git', ['remote', 'get-url', 'origin'], { env: ghEnv, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+      const githubOrigin = origin.match(/^(?:https:\/\/github\.com\/|ssh:\/\/git@github\.com\/|git@github\.com:)([^/]+\/[^/]+)\/?$/i);
+      repo = githubOrigin?.[1].replace(/\.git$/, '');
+    } catch { /* gh can also resolve a checkout with a nonstandard remote. */ }
+  }
+  const executable = values['dry-run'] && repo ? 'gh' : await githubCli(ghEnv);
   if (env.GH_TOKEN) ghEnv.GH_TOKEN = env.GH_TOKEN;
   const gh = (args, input) => {
-    try { return execFileSync('gh', args, { env: ghEnv, input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 120_000 }).trim(); }
-    catch (error) { throw new Error(`gh ${args.slice(0, 2).join(' ')} failed (exit ${error.status ?? 'timeout'}). Check gh auth status and repository access.`); }
+    try { return execFileSync(executable, args, { env: ghEnv, input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 120_000 }).trim(); }
+    catch (error) {
+      const status = /\bHTTP (\d{3})\b/.exec(error.stderr ?? '')?.[1];
+      throw new Error(`gh ${args.slice(0, 2).join(' ')} failed (${status ? 'HTTP ' + status : error.code ?? 'exit ' + error.status}). Check GitHub authentication and repository permissions.`);
+    }
   };
   const api = (path, body, method = body === undefined ? 'GET' : 'POST') => {
     const result = gh(['api', path, '--method', method, ...(body === undefined ? [] : ['--input', '-'])],
       body === undefined ? undefined : JSON.stringify(body));
     return result ? JSON.parse(result) : null;
   };
-  if (!values['dry-run']) {
-    try { gh(['auth', 'status']); }
-    catch {
-      if (env.GH_TOKEN) throw new Error('GH_TOKEN could not authenticate. Fix it in .env or leave it empty to use gh auth login.');
-      console.log('Authenticate the repository administrator with GitHub CLI.');
-      execFileSync('gh', ['auth', 'login', '--hostname', 'github.com'], { env: ghEnv, stdio: 'inherit' });
-    }
-  }
-  const repo = repository(values.repo ?? env.GITHUB_REPOSITORY ?? gh(['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner']));
+  if (!values['dry-run']) authenticateGitHub(executable, ghEnv);
+  repo = repository(repo ?? gh(['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner']));
   return { env, selected, timeout, gh, api, repo, dryRun: values['dry-run'], noWait: values['no-wait'] };
 }
 
 export function requiredSettings(config, { validate = true } = {}) {
   const secrets = [...new Set(config.selected.flatMap(name => providers[name].secrets))];
-  const variables = [...new Set(config.selected.flatMap(name => providers[name].variables))];
-  const missing = [...secrets, ...variables].filter(key => !config.env[key]?.trim());
+  const missing = secrets.filter(key => !config.env[key]?.trim());
   if (validate && missing.length) throw new Error(`Fill these .env entries for the selected reviewers: ${missing.join(', ')}`);
-  if (validate && variables.includes('OPENCODE_MODEL') && !/^opencode-go\/[A-Za-z0-9._-]+$/.test(config.env.OPENCODE_MODEL)) {
-    throw new Error('OPENCODE_MODEL must name an available opencode-go/MODEL_ID.');
-  }
-  return { secrets, variables };
+  return { secrets, missing };
 }
 
 export function inspectRepository({ api, repo, selected }, { admin = false } = {}) {
@@ -81,16 +86,17 @@ export function establishLabels({ gh, repo }) {
 }
 
 export async function ensureImage(config, main, { sleep = delay, now = Date.now } = {}) {
-  const path = `/repos/${config.repo}/actions/workflows/build-image.yml/runs?branch=main&per_page=100`;
-  let runs = config.api(path).workflow_runs;
+  const path = `/repos/${config.repo}/actions/workflows/build-image.yml/runs?branch=main&head_sha=${main}&per_page=30`;
+  const runs = config.api(path).workflow_runs;
   const ready = runs.find(run => run.head_sha === main && run.conclusion === 'success');
   if (ready) { console.log(`Image build already succeeded: ${ready.html_url}`); return ready; }
   let run = runs.find(item => item.head_sha === main && item.status !== 'completed');
+  const previousIds = new Set(runs.map(item => item.id));
   const started = now();
   if (!run) config.gh(['workflow', 'run', 'build-image.yml', '--repo', config.repo, '--ref', 'main']);
   let lastStatus;
   while (now() - started < config.timeout) {
-    if (!run) run = config.api(path).workflow_runs.find(item => item.head_sha === main && Date.parse(item.created_at) >= started - 5000);
+    if (!run) run = config.api(path).workflow_runs.find(item => item.head_sha === main && !previousIds.has(item.id));
     else run = config.api(`/repos/${config.repo}/actions/runs/${run.id}`);
     if (run && run.status !== lastStatus) { console.log(`Image: ${run.status} — ${run.html_url}`); lastStatus = run.status; }
     if (run?.status === 'completed') {

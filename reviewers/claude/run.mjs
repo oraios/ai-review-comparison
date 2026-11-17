@@ -6,10 +6,10 @@ import { cleanEnv, readJson } from '../../scripts/lib.mjs';
 // Local counterpart to the Action: same model, prompt, MCP configuration and tools.
 const directory = resolve(process.argv[2]);
 if (!process.env.CLAUDE_CODE_OAUTH_TOKEN) throw new Error('BLOCKED: AUTH_MISSING — CLAUDE_CODE_OAUTH_TOKEN');
-const { model } = await readJson(resolve(directory, 'environment.json'));
+const { model, effort } = await readJson(resolve(directory, 'environment.json'));
 const home = resolve(directory, 'agent-home');
 const prompt = await readFile(resolve(directory, 'prompt.txt'), 'utf8');
-const child = spawn('claude', ['--print', '--model', model, '--max-turns', '12',
+const child = spawn('claude', ['--print', '--model', model, '--effort', effort, '--max-turns', '12',
   '--permission-mode', 'default', '--tools', '', '--strict-mcp-config',
   '--mcp-config', resolve(directory, 'mcp.json'), '--setting-sources', '',
   '--allowedTools', 'mcp__project__review_context,mcp__project__run_checks,mcp__project__submit_review,mcp__serena__list_dir'], {

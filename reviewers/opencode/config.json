@@ -1,6 +1,6 @@
 {
   "status": "implemented",
-  "model": null,
+  "model": "opencode-go/kimi-k3",
   "auth": "OpenCode Go subscription API key; Extra Usage must be disabled",
   "version": "1.19.5"
 }

@@ -1,6 +1,7 @@
 {
   "status": "implemented",
-  "model": "sonnet",
+  "model": "claude-sonnet-5-5",
+  "effort": "medium",
   "auth": "Claude Pro/Max OAuth",
   "secret": "CLAUDE_CODE_OAUTH_TOKEN"
 }

@@ -14,7 +14,7 @@ Local runs produce files and **never publish to GitHub**. They do not emulate Ac
 | Local Codex prompt | PR metadata and shared instructions | Your Codex CLI/session; no github-aw sandbox, Copilot inference route, or receipt guarantee |
 | github-aw compile/dispatch preview | Markdown source and generated lock | Validation/preview only; the pinned CLI runs actual workflows on GitHub |
 
-The automated local runner supports **Claude, Copilot, OpenCode, and OpenHands**. Claude invokes the CLI with the Action's model/MCP/tool settings; the other three invoke the same adapter files as CI. Cline/goose remain disabled prototypes.
+The automated local runner supports **Claude, Copilot and OpenCode**. Claude invokes the CLI with the Action's model/MCP/tool settings; the other two invoke the same adapter files as CI. Cline/goose remain disabled prototypes.
 
 ## Common setup: PR and authentication
 
@@ -33,14 +33,13 @@ The same fixture restrictions as CI apply: open, same repository, base main, exa
 
 ### Provide local credentials
 
-GitHub Actions secrets are not downloaded. Set the chosen credential in the shell that launches the runner; only that credential is forwarded to the agent. Model variables are also local rather than read automatically from repository variables.
+Set the selected reviewer’s subscription credential in the shell that launches the runner. Local reviews use the same model and effort as GitHub Actions.
 
 | Reviewer | Local environment variable | Model setting |
 | --- | --- | --- |
-| `claude` | `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token` | `reviewers/claude/config.json` |
-| `copilot` | `COPILOT_GITHUB_TOKEN`, personal PAT with Copilot Requests access | `reviewers/copilot/config.json` |
-| `opencode` | `OPENCODE_GO_API_KEY`, Go subscription member key | `OPENCODE_MODEL=opencode-go/YOUR_MODEL_ID` |
-| `openhands` | `LLM_API_KEY`, explicit API provider key | `LLM_MODEL=PROVIDER/MODEL_ID` (also accepts `OPENHANDS_MODEL`) |
+| `claude` | `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token` | Claude Sonnet 5.5, medium |
+| `copilot` | `COPILOT_GITHUB_TOKEN`, personal PAT with Copilot Requests access | Claude Sonnet 5.5, medium |
+| `opencode` | `OPENCODE_GO_API_KEY`, Go subscription member key | Kimi K3, model default |
 
 Use your secret manager or read a value without storing it in shell history. For example, in Bash:
 
@@ -55,7 +54,7 @@ In PowerShell:
 $env:COPILOT_GITHUB_TOKEN = [System.Net.NetworkCredential]::new('', (Read-Host 'Copilot token' -AsSecureString)).Password
 ```
 
-Use the corresponding variable name for another reviewer. OpenCode still requires disabling **Extra Usage** in the Go console; the script cannot enforce that billing setting. Subscriptions, quotas, and explicit OpenHands API charges are the same as for hosted adapters. See the [authentication matrix](AUTH_MATRIX.md).
+Use the corresponding variable name for another reviewer. OpenCode still requires disabling **Extra Usage** in the Go console; the script cannot enforce that billing setting. The selected subscription and its quotas apply. See the [authentication matrix](AUTH_MATRIX.md).
 
 ### Prepare without inference
 
@@ -101,7 +100,7 @@ npm run review:local -- --reviewer copilot --pr 123 --image review-env:local
 
 Or pass a published `ghcr.io/OWNER/REPO/review-env@sha256:...` reference. The image must contain this version of the local runner. An older published image may need rebuilding before these commands work.
 
-Only the run directory is mounted. The container gets the selected inference variable and model settings, not your `gh` login, checkout, account home, or Docker socket. Instructions and MCP code come from **inside the image**. Rebuild to test edits to them, or use native mode.
+Only the run directory is mounted. The container receives the selected subscription credential. Reviewer settings, instructions and MCP code come from **inside the image**. Rebuild to test edits to them, or use native mode.
 
 ## Native execution
 
@@ -117,12 +116,7 @@ uv venv .venv-serena --python 3.13
 uv pip install --python .venv-serena/bin/python 'git+https://github.com/oraios/serena@6e5c3776d4e67befaab7c290bc29b0279c98d1ed'
 ```
 
-On Linux, Playwright may need system libraries: use `npx --no-install playwright install --with-deps chromium` with the required package-install privileges. OpenHands additionally needs its pinned environment:
-
-```bash
-uv venv .venv-openhands --python 3.13
-uv pip sync --python .venv-openhands/bin/python --require-hashes reviewers/openhands/requirements.txt
-```
+On Linux, Playwright may need system libraries: use `npx --no-install playwright install --with-deps chromium` with the required package-install privileges.
 
 Then run the selected reviewer with the shell credentials above:
 
@@ -130,12 +124,11 @@ Then run the selected reviewer with the shell credentials above:
 npm run review:local -- --reviewer claude --pr 123 --runtime native
 npm run review:local -- --reviewer copilot --pr 123 --runtime native
 npm run review:local -- --reviewer opencode --pr 123 --runtime native
-npm run review:local -- --reviewer openhands --pr 123 --runtime native
 ```
 
-Defaults are `.venv-serena/bin/serena` and `.venv-openhands/bin/python`. Use `--serena /absolute/path/to/serena` or `--python /absolute/path/to/python` for other installations. Only OpenHands uses the Python override. The active checkout supplies code/instructions, including local edits; its revision and dirty state are recorded. Treat that checkout as trusted.
+The native Serena path defaults to `.venv-serena/bin/serena`. Override it with `--serena /absolute/path/to/serena`. The active checkout supplies code/instructions, including local edits; its revision and dirty state are recorded. Treat that checkout as trusted.
 
-The runner uses disposable agent homes and explicit credentials rather than your normal CLI account configuration. MCP subprocesses receive an environment allowlist. A saved CLI login alone therefore does not satisfy these four adapters. Claude's `setup-token` is designed for scripts; `--bare` is not selected because it does not read that OAuth variable. [Claude authentication](https://code.claude.com/docs/en/authentication), [headless execution](https://code.claude.com/docs/en/headless).
+The runner uses disposable agent homes and explicit credentials rather than your normal CLI account configuration. MCP subprocesses receive an environment allowlist. A saved CLI login alone therefore does not satisfy these three adapters. Claude's `setup-token` is designed for scripts; `--bare` is not selected because it does not read that OAuth variable. [Claude authentication](https://code.claude.com/docs/en/authentication), [headless execution](https://code.claude.com/docs/en/headless).
 
 ## No PR yet, or no model credential
 
@@ -158,29 +151,7 @@ On Windows use `.venv-serena/Scripts/serena.exe`. This verifies real Serena, tes
 
 ## github-aw and Codex locally
 
-The pinned **gh-aw v1.2.2** `run --help` says execution is on GitHub Actions and has no `--local` flag. Locally you can compile and preview a dispatch:
-
-```bash
-gh aw compile aw-codex
-gh aw run aw-codex --ref main --raw-field pr_number=123 --dry-run
-```
-
-`run --dry-run` does not execute a local model. The dispatch preview can still require GitHub authentication and a workflow registered on the default branch. Compilation/preview cannot reproduce AWF networking, Copilot-backed Codex inference, or Actions artifacts. `compile --dry-run` is a different restricted validation mode and rejects some authored setup hooks in this workflow; it is not a local engine either. No tested `act` recipe is provided for this compiler-generated stack. [gh-aw local debugging design](https://github.com/github/gh-aw/blob/v1.2.2/docs/adr/66270-local-first-workflow-debugging-compile-modes.md), [CLI documentation](https://github.github.io/gh-aw/setup/cli/).
-
-For a close **review-task** alternative, use the same PR prompt in your locally authenticated Codex CLI:
-
-```bash
-node scripts/hosted-prompt.mjs oraios/ai-review-comparison 123
-codex
-```
-
-Paste `artifacts/hosted-review-prompt.txt`. The prompt includes the same policy and immutable PR context, plus `gh pr view`/`gh pr diff` commands. Use your existing local Codex sign-in; do not export its account session into Actions. An optional noninteractive invocation is:
-
-```bash
-codex exec --ephemeral - < artifacts/hosted-review-prompt.txt
-```
-
-PowerShell equivalent: `Get-Content artifacts/hosted-review-prompt.txt -Raw | codex exec --ephemeral -`. Available tools and network permissions depend on your local Codex configuration; a read-only sandbox may need an interactive approval for GitHub access. This is not the github-aw Copilot-funded engine or the hosted OpenAI/GitHub service, and it does not establish MCP/image parity. [Codex local noninteractive mode](https://learn.chatgpt.com/docs/non-interactive-mode).
+The [rejected gh-aw image experiment](../reviewers/github-aw/README.md) can be built locally. It is separate from the supported review adapters.
 
 ## Results and fidelity
 

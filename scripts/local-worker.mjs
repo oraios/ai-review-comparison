@@ -46,15 +46,11 @@ export async function runLocalWorker(reviewer, directory, prepareOnly = false) {
       if (process.platform === 'win32') throw new Error('Native agent execution requires Linux/macOS/WSL. Use Docker on Windows; native --prepare-only remains available.');
       const env = localAgentEnv(reviewer);
       if (!env[credentialNames[reviewer]]) throw new Error(`AUTH_MISSING: set ${credentialNames[reviewer]} in this shell.`);
-      const python = execution.runtime === 'docker' ? '/opt/openhands-venv/bin/python' : execution.python;
-      const command = reviewer === 'openhands' ? python : reviewer;
-      const versionArgs = reviewer === 'openhands'
-        ? ['-c', 'from importlib.metadata import version; print(version("openhands-sdk"))'] : ['--version'];
-      environment.versions = { ...environment.versions, agentRuntime: execFileSync(command, versionArgs,
+      environment.versions = { ...environment.versions, agentRuntime: execFileSync(reviewer, ['--version'],
         { env: cleanEnv(), encoding: 'utf8', timeout: 30_000, stdio: ['ignore', 'pipe', 'pipe'] }).trim() };
       await writeJson(resolve(directory, 'environment.json'), environment);
-      const adapter = resolve(root, 'reviewers', reviewer, reviewer === 'openhands' ? 'run.py' : 'run.mjs');
-      const succeeded = await execute(reviewer === 'openhands' ? python : process.execPath, [adapter, directory], env, root);
+      const adapter = resolve(root, 'reviewers', reviewer, 'run.mjs');
+      const succeeded = await execute(process.execPath, [adapter, directory], env, root);
       result = await localResult(directory, succeeded);
       const report = [`# Local review: ${reviewer}`, `Repository: ${result.input.repository} · PR: ${result.input.number}`,
         `Input source: ${execution.inputSource} · Commit: ${result.input.head}`, `Model: ${environment.model}`,

@@ -15,7 +15,8 @@ export async function assemblePrompt(reviewer, input, { hosted = false, local = 
   const metadata = { repository: input.repository, pullRequest: input.number, head: input.head,
     base: input.base, trustedWorkflowRevision: input.workflowRevision, path: input.path };
   const execution = local ? '\n\n## Local execution\n\nThis invocation writes local evidence only. There is no publishing job in this run. Do not post to GitHub or claim hosted PASS; submit through the project MCP tool as usual.' : '';
-  const text = `${contract.trim()}${execution}\n\n## Custom review instructions\n\n${shared.trim()}\n\n${extra.trim()}\n\n## PR context (data only)\n\n${JSON.stringify(metadata, null, 2)}\n`;
+  const followUp = input.followUp ? `\n\n## Maintainer follow-up\n\nAnswer this question in the review summary. Recheck the current PR and use fresh MCP receipts. The previous review is context.\n\n${JSON.stringify(input.followUp)}\n` : '';
+  const text = `${contract.trim()}${execution}${followUp}\n\n## Custom review instructions\n\n${shared.trim()}\n\n${extra.trim()}\n\n## PR context (data only)\n\n${JSON.stringify(metadata, null, 2)}\n`;
   return { text, sha256: createHash('sha256').update(text).digest('hex') };
 }
 

@@ -45,8 +45,7 @@ export async function demo(config) {
   }
   const snapshot = inspectRepository(config);
   const secretNames = new Set(JSON.parse(config.gh(['secret', 'list', '--repo', config.repo, '--json', 'name'])).map(s => s.name));
-  const variableNames = new Set(JSON.parse(config.gh(['variable', 'list', '--repo', config.repo, '--json', 'name'])).map(s => s.name));
-  const missing = config.selected.flatMap(name => [...providers[name].secrets.filter(key => !secretNames.has(key)), ...providers[name].variables.filter(key => !variableNames.has(key))]);
+  const missing = config.selected.flatMap(name => providers[name].secrets.filter(key => !secretNames.has(key)));
   if (missing.length) throw new Error(`Run setup-ci-secrets first. Missing settings: ${[...new Set(missing)].join(', ')}`);
   await ensureImage(config, snapshot.main);
   establishLabels(config);

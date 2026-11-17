@@ -1,51 +1,33 @@
-# Review triggers
+# Trigger a review on GitHub
 
-The demo separates event routing from the review agent. Applying a provider label dispatches an authorized review on main. A manual PR-number trigger supplies the same stable context; a native mention or hosted UI provides a different product experience. Opening or pushing a PR alone does not start inference.
-
-## Shipped paths
-
-| Path | Enabled trigger | Context | Result |
+| Reviewer | Initial label | Follow-up in a PR conversation | Manual workflow |
 | --- | --- | --- | --- |
-| Claude Code Action | `review:claude` or `workflow_dispatch` on main | Validated numeric PR snapshot + assembled prompt | Separate validated PR COMMENT review |
-| Copilot CLI | `review:copilot` or manual dispatch | Same | Same |
-| OpenCode CLI | `review:opencode` or manual dispatch | Same; Go subscription model | Same |
-| OpenHands SDK | `review:openhands` or manual dispatch | Same; explicitly API-funded model | Same |
-| github-aw Codex | `review:github-aw` or manual dispatch via compiled lock | Same snapshot/instructions through project MCP | Separate comparator PR COMMENT review and evidence |
-| OpenAI-hosted Codex | User-configured `@codex review`, automatic review, or cloud task | Host PR context or generated prompt | Host-native review/task |
-| GitHub-hosted Codex | User-selected agent task, supported assignment/mention | Host context or generated prompt | Host-native task/review output |
-| Cline / goose ACP | None | Proposed prompts/templates | Disabled prototypes |
-| Local image/native runner | `npm run review:local -- --reviewer NAME --pr NUMBER` | Same validated fixture snapshot through existing `gh` auth | Local report and receipts; no publication |
+| Claude Code | `review:claude` | `/review claude QUESTION` | `review-claude.yml` |
+| Copilot CLI | `review:copilot` | `/review copilot QUESTION` | `review-copilot.yml` |
+| OpenCode | `review:opencode` | `/review opencode QUESTION` | `review-opencode.yml` |
 
-The hosted paths are guides, not integrations this repo has installed. `scripts/hosted-prompt.mjs OWNER/REPO NUMBER` reads PR metadata using the caller's `gh` login and writes a prompt; it never sends it. All authenticated hosted behavior remains untested here. [Local execution](LOCAL_RUNS.md) documents Docker/native preparation, shell credentials, synthetic fixtures, and github-aw's compile-only local capabilities.
+## Initial review
 
-## Native capabilities versus future glue
+`npm run demo-review-on-gh` creates and labels one PR per selected reviewer. On an existing eligible PR, a repository collaborator with write, maintain or admin access can apply the corresponding label. The authorizations apply equally to private and public repositories. Opening a PR starts the ordinary CI checks.
 
-| Event | Native support or custom implementation | Enabled here? |
-| --- | --- | --- |
-| Manual selected PR | All implemented harnesses use custom routing; github-aw compiles it | Yes, after setup |
-| PR opened/synchronize/reopened/ready-for-review | Claude/OpenCode integrate; other CLIs can use Actions glue; OpenAI has configured automatic review | Only credential-free fixture CI by default |
-| PR command comment | Claude `@claude`; OpenCode `/oc` or `/opencode`; hosted Codex integrations | Only after separately configuring the relevant hosted/native integration |
-| Inline review comment | Native Claude/OpenCode integration or a custom router | No local AI workflow listens to it |
-| Label | Trusted `pull_request_target: labeled` router, fixed workflow map, actor checks | Yes, five provider labels |
-| Review request | Would require explicit routing and author checks | No |
-| Schedule | Discover eligible PRs, bound usage, avoid repeats; framework scheduling available | No |
-| Fork / first-time contributor | Ordinary credential-free CI; provider-bearing fixture preflight rejects forks | No credentialed fixture reviews |
+## Ask a follow-up
 
-Changing YAML events alone does not work: `prepare-pr.mjs` requires a main-branch dispatch. The label router has no checkout, no model secrets, and only dispatches a fixed workflow name. A bot dispatch must supply a verifiable router run; preparation queries its workflow identity and human actor permissions and checks the current label. Applying labels with your personal `gh` login triggers the router. A label left on a PR does not review later pushes; remove/reapply it to retry. Any future comment router must validate event, author, repository, selected commit, and fixture before invoking inference.
+Post a new comment in the PR’s **Conversation** tab. Start at the beginning of the comment and name one reviewer.
 
-## Preflight and publication rules
+```text
+/review claude Recheck your previous finding against the latest commit. What evidence changed?
+```
 
-The current preflight accepts only positive integer PR numbers, open same-repository PRs targeting main, and exactly one modified numeric `demo/pricing.json`. It rejects forks, renamed files, executable changes, unknown JSON fields, and a moving head/base. Both the original actor and rerun initiator must have write/maintain/admin access.
+The question can span several lines, up to 4,000 characters. Omit it to request another review. Each comment starts a fresh agent session with the current snapshot, the maintainer’s question and the previous review from that provider when available. The answer appears in a new PR review with fresh evidence. These review workflows produce findings and answers. They do not push fixes.
 
-The main image must match the dispatched workflow revision. Ordinary image reviewers publish only after real MCP/check receipts and image provenance validate; the publisher rechecks the PR head and uses that immutable commit ID. github-aw validates its tools-image evidence separately and publishes through a post-agent job gated by the compiler's detection job. Its result is `COMPARATOR_REVIEW_PUBLISHED`, not the ordinary custom-agent-image PASS.
+The router listens for newly created conversation comments. Post a new comment after a new commit, when correcting a request or when retrying a failed run. A new push runs fixture CI. Commit-message tags, mentions and Git tags do not dispatch a reviewer. Inline diff replies, edited comments and vendor-specific mentions are outside this router. Only open same-repository demo PRs targeting `main` pass preflight.
 
-GitHub may require approval for a first-time contributor's credential-free CI. That does not authorize a provider-bearing fork review. A maintainer can create a separately inspected, same-repository JSON-only fixture branch for the live demo.
+## Manual dispatch
 
-## Primary references
+A maintainer can choose **Actions → Review / PROVIDER → Run workflow** or use GitHub CLI. Supply the PR number and leave the internal router fields empty. Select `main` for each reviewer.
 
-- [Claude triggers](https://github.com/anthropics/claude-code-action/blob/main/docs/migration-guide.md)
-- [Copilot CLI in Actions](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions)
-- [OpenCode Action, events and prompts](https://opencode.ai/v1/docs/github)
-- [github-aw workflow creation](https://github.github.io/gh-aw/setup/creating-workflows/)
-- [OpenAI Codex GitHub integration](https://learn.chatgpt.com/docs/third-party/github)
-- [GitHub third-party agents](https://docs.github.com/en/copilot/concepts/agent-capabilities/about-agents/about-third-party-coding-agents)
+```sh
+gh workflow run review-copilot.yml --ref main -f pr_number=123
+```
+
+The reviewer uses a read-only GitHub token. A separate job validates the MCP evidence and confirms the PR still points to the reviewed commit before it posts. [Setup](SETUP.md) · [Security model](SECURITY.md)

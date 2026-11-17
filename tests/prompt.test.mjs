@@ -10,6 +10,12 @@ test('review prompt includes trusted policy, reviewer override and immutable PR 
   assert.match(prompt.text, /one concise finding/);
   assert.match(prompt.text, /"pullRequest": 42/);
   assert.ok(prompt.text.includes(input.head));
+  const followUp = await assemblePrompt('opencode', { ...input, followUp: {
+    question: 'Which result changed on the new head?', previousReview: 'Earlier review of this PR',
+  } });
+  assert.ok(followUp.text.includes('Which result changed on the new head?'));
+  assert.ok(followUp.text.includes('Earlier review of this PR'));
+  assert.notEqual(prompt.sha256, followUp.sha256);
   assert.notEqual(prompt.sha256, (await assemblePrompt('opencode', { ...input, head: 'd'.repeat(40) })).sha256);
   await assert.rejects(assemblePrompt('../escape', input));
 });

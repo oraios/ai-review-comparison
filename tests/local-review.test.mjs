@@ -53,7 +53,25 @@ test('local options reject ambiguous inputs; Docker forwards only named inferenc
     CLAUDE_CODE_OAUTH_TOKEN: 'other-account', OPENHANDS_MODEL: 'provider/model' });
   assert.equal(env.COPILOT_GITHUB_TOKEN, 'chosen');
   assert.equal(env.GH_TOKEN, undefined); assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN, undefined);
-  assert.equal(env.LLM_MODEL, 'provider/model');
+  assert.equal(env.LLM_MODEL, undefined);
+  assert.throws(() => localOptions(['--reviewer', 'openhands', '--pr', '1']));
+});
+
+test('the prepared review records the pinned model and effort for each provider', async t => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'review-models-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const inputPath = resolve(directory, 'seed.json');
+  await writeJson(inputPath, { repository: 'owner/repo', number: 42, head, base, before, after });
+  for (const [reviewer, model, effort] of [
+    ['claude', 'claude-sonnet-5-5', 'medium'],
+    ['copilot', 'claude-sonnet-5.5', 'medium'],
+    ['opencode', 'opencode-go/kimi-k3', undefined],
+  ]) {
+    await prepareRun({ reviewer, directory, inputPath, local: true });
+    const recorded = await readJson(resolve(directory, 'environment.json'));
+    assert.equal(recorded.model, model);
+    assert.equal(recorded.effort, effort);
+  }
 });
 
 test('local preparation and evidence stay separate from hosted PASS', async () => {

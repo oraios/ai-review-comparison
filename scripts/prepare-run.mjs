@@ -12,13 +12,11 @@ export async function prepareRun({ reviewer, inputPath, directory, imagePath = r
   const settings = await readJson(resolve(root, 'reviewers', reviewer, 'config.json'));
   if (settings.status !== 'implemented' && reviewer !== 'local') throw new Error(`BLOCKED: ${settings.reason}`);
   const baked = local ? { marker: 'LOCAL_ONLY', revision: 'local', versions: {} } : await readJson(imagePath);
-  const model = reviewer === 'openhands' ? process.env.LLM_MODEL : reviewer === 'opencode' ? process.env.OPENCODE_MODEL : settings.model;
-  if (reviewer === 'openhands' && !model) throw new Error('BLOCKED: CONFIG_MISSING — set the OPENHANDS_MODEL repository variable.');
-  if (reviewer === 'opencode' && !/^opencode-go\/[a-zA-Z0-9._-]+$/.test(model || '')) throw new Error('BLOCKED: CONFIG_MISSING — set OPENCODE_MODEL to an opencode-go/MODEL available to your subscription.');
   const prompt = await assemblePrompt(reviewer, input, { local });
   const environment = { ...baked, image: image || 'local-no-image', platform: process.platform,
-    arch: process.arch, node: process.version, reviewer, model, auth: settings.auth, promptSha256: prompt.sha256,
-    imageRole: reviewer === 'github-aw' ? 'mcp-tools' : 'agent-and-mcp-tools',
+    arch: process.arch, node: process.version, reviewer, model: settings.model, effort: settings.effort,
+    auth: settings.auth, promptSha256: prompt.sha256,
+    imageRole: 'agent-and-mcp-tools',
     run: local ? 'local' : process.env.GITHUB_RUN_ID, attempt: local ? '1' : process.env.GITHUB_RUN_ATTEMPT,
     ...(localExecution ? { localExecution } : {}) };
   if (!local) validateImage(environment, input.workflowRevision);

@@ -1,0 +1,107 @@
+name: Publish gh-aw demo image
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Publish review image"]
+    branches: [main]
+    types: [completed]
+env:
+  PROJECT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+permissions:
+  contents: read
+concurrency:
+  group: gh-aw-image-main
+  cancel-in-progress: false
+jobs:
+  gh-aw:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      project: ${{ steps.base.outputs.image }}
+      digest: ${{ steps.publish.outputs.digest }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.PROJECT_SHA }}
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Resolve the published project image for this main commit
+        id: base
+        run: |
+          name="ghcr.io/${GITHUB_REPOSITORY,,}/review-env"
+          digest=$(docker buildx imagetools inspect "$name:sha-$PROJECT_SHA" --format '{{json .Manifest}}' | jq -er '.digest')
+          image="$name@$digest"
+          docker buildx imagetools inspect "$image" --format '{{json .Image}}' | jq -e --arg sha "$PROJECT_SHA" --arg source "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" '
+            .os == "linux" and .architecture == "amd64" and .config.Labels["demo.marker"] == "REVIEW_IMAGE_OK_2026" and
+            .config.Labels["org.opencontainers.image.revision"] == $sha and .config.Labels["org.opencontainers.image.source"] == $source'
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+      - name: Publish the custom gh-aw agent built from the main image
+        id: publish
+        env:
+          PROJECT_IMAGE: ${{ steps.base.outputs.image }}
+        run: |
+          docker buildx bake gh-aw --push --metadata-file "$RUNNER_TEMP/awf-build.json" \
+            --set "gh-aw.tags=${PROJECT_IMAGE%@*}-awf:sha-${PROJECT_SHA}"
+          digest=$(jq -er '."gh-aw"."containerimage.digest"' "$RUNNER_TEMP/awf-build.json")
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+  verify:
+    needs: gh-aw
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.PROJECT_SHA }}
+          persist-credentials: false
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - name: Compile and validate the workflow with the published digests
+        env:
+          PROJECT_IMAGE: ${{ needs.gh-aw.outputs.project }}
+          AGENT_DIGEST: ${{ needs.gh-aw.outputs.digest }}
+        run: |
+          node scripts/aw-image-example.mjs "$GITHUB_REPOSITORY" "$PROJECT_SHA" "${PROJECT_IMAGE#*@}" "$AGENT_DIGEST"
+          curl -fsSL --retry 3 https://github.com/github/gh-aw/releases/download/v1.2.2/linux-amd64 -o "$RUNNER_TEMP/gh-aw"
+          echo "c2378d85466d29cdbdfebd0e513557b5cbec18d34f44e7cc00c2fa323687a153  $RUNNER_TEMP/gh-aw" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/gh-aw"
+          "$RUNNER_TEMP/gh-aw" compile aw-image-example --validate
+      - name: Run the agent-side fixture check through the firewall
+        run: |
+          curl -fsSL --retry 3 https://github.com/github/gh-aw-firewall/releases/download/v0.29.11/awf-linux-x64 -o "$RUNNER_TEMP/awf"
+          echo "6e3898524fa9e17d7c44359fd15385c0926ac9ac8bda53807aa30d59cc3607f6  $RUNNER_TEMP/awf" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/awf"
+          node --input-type=module -e '
+            import YAML from "yaml"; import fs from "node:fs";
+            const {agent,squid,"api-proxy":apiProxy} = YAML.parse(fs.readFileSync(".github/workflows/aw-image-example.md","utf8").split("---")[1]).sandbox.agent.images;
+            fs.writeFileSync(process.env.RUNNER_TEMP+"/awf-config.json",JSON.stringify({container:{images:{agent,squid,apiProxy}},network:{allowDomains:[]}}));'
+          "$RUNNER_TEMP/awf" --config "$RUNNER_TEMP/awf-config.json" -- bash -c /review-demo/check | tee "$RUNNER_TEMP/agent-smoke.log"
+          grep -Eq '^agentRuntimeId=[0-9a-f-]{36}$' "$RUNNER_TEMP/agent-smoke.log"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: aw-image-example-${{ env.PROJECT_SHA }}
+          path: |
+            .github/workflows/aw-image-example.md
+            .github/workflows/aw-image-example.lock.yml
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 90

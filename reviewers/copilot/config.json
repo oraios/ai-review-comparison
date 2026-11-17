@@ -1,6 +1,7 @@
 {
   "status": "implemented",
   "model": "claude-sonnet-5.5",
+  "effort": "medium",
   "auth": "Copilot seat / personal fine-grained PAT",
   "secret": "COPILOT_GITHUB_TOKEN"
 }

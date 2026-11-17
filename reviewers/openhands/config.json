@@ -1,6 +1,0 @@
-{
-  "status": "implemented",
-  "model": null,
-  "auth": "Provider API (explicit exception)",
-  "secret": "LLM_API_KEY"
-}

@@ -1,0 +1,50 @@
+---
+name: Custom gh-aw image experiment
+description: Exercise the demo image in the Codex agent container and reach Serena through the gh-aw gateway.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: read
+engine:
+  id: codex
+  model-provider: github
+  model: copilot/gpt-6.1-sol
+timeout-minutes: 10
+max-turns: 5
+sandbox:
+  agent:
+    images:
+      agent: __AGENT_IMAGE__
+      squid: ghcr.io/github/gh-aw-firewall/squid:0.29.11@sha256:861739ecf924dd2db5e5fb652db2ad82aaafd1615623297ddabc8f41a36b2847
+      api-proxy: ghcr.io/github/gh-aw-firewall/api-proxy:0.29.11@sha256:88d2d0e315a504d93fd4fb8847fd0f6b7f4469f41a6fc6047b3dc9654c56ab2c
+tools:
+  bash: ["*"]
+  cli-proxy: false
+mcp-servers:
+  serena:
+    type: stdio
+    container: __PROJECT_IMAGE__
+    entrypoint: /bin/sh
+    entrypointArgs:
+      - -ec
+      - |
+        mkdir -p /tmp/project/.serena
+        cp /opt/review-demo/demo/pricing.* /tmp/project/
+        cp /opt/review-demo/mcp/serena-project.yml /tmp/project/.serena/project.yml
+        exec /opt/serena-venv/bin/serena start-mcp-server --project /tmp/project --context /opt/review-demo/mcp/serena-context.yml --mode one-shot --agent-interface tools --enable-web-dashboard false --open-web-dashboard false --enable-gui-log-window false
+    args: [--network, none]
+    allowed: [list_dir]
+safe-outputs:
+  create-issue: false
+  report-failure-as-issue: false
+  report-incomplete:
+    create-issue: false
+  report-failed-jobs: false
+  report-missing-tool: false
+  report-missing-data: false
+  noop:
+    report-as-issue: false
+---
+
+Run `/review-demo/check` in the agent shell. Call Serena's `list_dir` for the project root and report the observed results. The shell and Serena run in separate containers.

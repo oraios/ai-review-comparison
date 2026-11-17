@@ -1,24 +1,16 @@
-# Results — 13 November 2026
+# Results
 
-**No candidate has PASS status.** Four image adapters and one compiled github-aw comparator are implemented, with guides for two hosted Codex paths. No inference token, hosted image build, or GitHub PR publication has been exercised. Repository inspection found no configured Actions secrets or variables and no open PR. The repository was private during implementation; neither visibility nor remote contents were changed.
+**The hosted Linux image build passed on 16 November 2026.** GitHub Actions built commit `433a528`, ran the fixture tests, exercised real Serena over MCP and Chromium inside the image, then published the linux/amd64 image. The GHCR index digest was `sha256:c0188b2abb6d59c31609d42c4c5b4f62d6e8f1f1011889e509e68485fe1c028d`. [Build and publication log](https://github.com/oraios/ai-review-comparison/actions/runs/43897795402) · [Fixture CI](https://github.com/oraios/ai-review-comparison/actions/runs/43897795525)
 
-## Candidate acceptance
+## Current comparison
 
-| Priority for this demo | Candidate | Implementation | Exact project image in authenticated CI | Actual MCP consumed by model | Checks invoked by model | GitHub review | Acceptance |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | Claude Code Action | Label/manual workflow, subscription OAuth, bounded tools | Not run | Not run | Not run | Not run | **BLOCKED: AUTH_MISSING / HOSTED_RUN_REQUIRED** |
-| 2 | Copilot CLI | Label/manual workflow, personal PAT/seat, custom publisher | Not run | Not run | Not run | Not run | **BLOCKED: AUTH_MISSING / HOSTED_RUN_REQUIRED** |
-| 3 | OpenCode CLI | Label/manual workflow, Go subscription-issued key, common publisher | Not run | Not run | Not run | Not run | **BLOCKED: AUTH_MISSING / MODEL_CONFIG / HOSTED_RUN_REQUIRED** |
-| Comparator | github-aw Codex | v1.2.2 source/lock; label/manual trigger; Copilot inference; custom-image MCP containers and publisher | Tools image only; not run | Not run | Not run | Not run | **COMPILED / HOSTED_RUN_REQUIRED** |
-| Hosted | Codex on OpenAI | Setup/instructions guide and generic PR prompt | No image-parity claim | Unverified | Not run | Not run | **GUIDED / HOSTED_RUN_REQUIRED** |
-| Hosted | Codex on GitHub | Copilot subscription guide and generic PR prompt | Managed environment | Unverified | Not run | Not run | **GUIDED / HOSTED_RUN_REQUIRED** |
-| Gate | goose + Claude ACP | Disabled prototype only | Not run | Not run | Not run | Not run | **BLOCKED: SUBSCRIPTION_CI — headless ACP validation** |
-| Gate | Cline | Disabled prototype only | Not run | Not run | Not run | Not run | **BLOCKED: SUBSCRIPTION_CI** |
-| API exception | OpenHands SDK | Independent native SDK workflow with custom MCP and isolated publisher | Not run | Not run | Not run | Not run | **BLOCKED: AUTH_MISSING / MODEL_CONFIG / HOSTED_RUN_REQUIRED** |
+Claude Code, Copilot CLI and OpenCode Go are retained. All three run Serena in the project container. Codex via gh-aw was rejected because its gateway launches Serena separately. The custom Codex image was built locally from the published demo base using AWF v0.29.11. The real firewall started the custom agent and its pinned proxy containers locally. The agent-side check executed the image’s own Node binary and project code inside a chroot with the runner’s system paths mounted. The gh-aw workflow compiled with the GitHub model provider and pinned container roles.
 
-Priority reflects documented public-OSS subscription viability and implementation fit, not measured model quality or reliability. Claude supplies a native Action; Copilot has documented seat-backed CI but requires our PR glue. OpenHands requires API funding. There are no comparable authenticated runs from which to rank quality, latency, cost or reliability yet.
+The local Linux project-image build passed its Serena MCP and Chromium checks. All 24 Node tests passed, including the model selections and PR follow-up authorization. An offline check captured the arguments passed by the review adapters and confirmed Sonnet 5.5 at medium effort for Claude and Copilot, and Kimi K3 for OpenCode Go. The GitHub workflows passed actionlint. Both npm commands completed a dry run using the environment template.
 
-## Actual local evidence
+No authenticated review URL has been recorded for these revisions. The [provider decisions](DISCARDED.md) describe the routes excluded under the subscription and image requirements.
+
+## Local evidence from 13 November 2026
 
 The [machine-readable local record](evidence/local-validation.json) contains real tool-call timestamps, unique receipts, the actual upstream Serena result, test/browser results and the explicitly scripted submission. It records `LOCAL_PROTOCOL_VERIFIED`, **never PASS**. No account credentials or remote review were used.
 
@@ -48,11 +40,9 @@ During validation the Windows Chromium **headless shell** crashed at page creati
 
 ## Remaining first-run work
 
-1. Land the implementation on `main` and let **Publish review image** build/test/publish. This is the first Linux container compatibility gate; successful YAML validation is insufficient.
-2. Fill `.env` with intended credentials and matching OpenCode/OpenHands model IDs, then run `npm run setup-ci-secrets`. See [README setup](../README.md#start-a-labeled-comparison). Do not store ChatGPT session files.
-3. Run `npm run demo-review-on-gh` to create and label one controlled PR per selected reviewer, and wait for actual review URLs.
-4. Preserve each run's `AGENT-input-RUN-ATTEMPT`, `AGENT-evidence-RUN-ATTEMPT`, and `AGENT-publication-RUN-ATTEMPT` artifacts. Record image digest, baked source commit, agent/version/model, auth route, findings, latency, quota/cost observations and GitHub review URL.
-5. Count image-run PASS only when `published.json` contains a real GitHub review ID/URL and all preceding evidence checks passed. github-aw has a separate `COMPARATOR_REVIEW_PUBLISHED` status, and hosted paths require their own run records. A reproduced regression is expected; missing execution is not success.
+1. Fill `.env` for the selected reviewers and run `npm run setup-ci-secrets`. Setup waits for the image for the current remote main commit. [setup guide](SETUP.md)
+2. Run `npm run demo-review-on-gh` to create and label one controlled PR per selected reviewer and wait for the review URLs.
+3. Record each review URL and its evidence in the ledger. Image runs reach `PASS` when `published.json` contains a GitHub review receipt after validation.
 
 ## Authenticated run ledger
 

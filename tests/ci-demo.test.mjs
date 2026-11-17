@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
 import { configuration, requiredSettings, inspectRepository, ensureImage } from '../scripts/ci-demo.mjs';
+import { authenticateGitHub, githubCliEnvironment } from '../scripts/github-cli.mjs';
 import { authorizeDispatch } from '../scripts/authorize-dispatch.mjs';
 import { selectProviders } from '../scripts/providers.mjs';
 import { setup } from '../scripts/setup-ci-secrets.mjs';
@@ -40,22 +41,74 @@ test('manual dispatch and reruns both require maintainer access', async () => {
   assert.equal(people.length, 2);
 });
 
+test('a follow-up must be an unedited maintainer command on this PR for this reviewer', async () => {
+  const comment = { user: { login: 'maintainer', type: 'User' }, issue_url: `https://api.github.com/repos/${repo}/issues/1`,
+    body: '/review claude Explain the new evidence.', created_at: 't1', updated_at: 't1' };
+  const check = (changes = {}) => authorizeDispatch({ repo, number: 1, env: { ...env, COMMENT_ID: '12' },
+    request: path => path.includes('/issues/comments/') ? { ...comment, ...changes } :
+      authorizationRequest({ run: { event: 'issue_comment' } })(path) });
+  assert.deepEqual(await check(), { author: 'maintainer', commentId: '12', question: 'Explain the new evidence.' });
+  for (const changes of [{ updated_at: 't2' }, { user: { login: 'other' } }, { body: '/review copilot Hello' },
+    { issue_url: `https://api.github.com/repos/${repo}/issues/2` }]) await assert.rejects(check(changes));
+});
+
+test('only single-container subscription reviewers are selectable', () => {
+  assert.deepEqual(selectProviders(), ['claude', 'copilot', 'opencode']);
+  assert.throws(() => selectProviders('github-aw'));
+  assert.throws(() => selectProviders('openhands'));
+});
+
 test('dotenv parsing treats shell syntax as data and only selected settings are required', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'review-env-'));
   try {
     const file = join(dir, '.env');
-    await writeFile(file, 'DEMO_REVIEWERS=copilot,github-aw\nGITHUB_REPOSITORY=owner/repo\nCOPILOT_GITHUB_TOKEN="synthetic-$(echo unsafe)"\n');
+    await writeFile(file, 'DEMO_REVIEWERS=copilot,openhands,github-aw\nGITHUB_REPOSITORY=owner/repo\nCOPILOT_GITHUB_TOKEN="synthetic-$(echo unsafe)"\n');
     const config = await configuration(['--env', file, '--dry-run'], {});
     assert.equal(config.env.COPILOT_GITHUB_TOKEN, 'synthetic-$(echo unsafe)');
-    assert.deepEqual(requiredSettings(config), { secrets: ['COPILOT_GITHUB_TOKEN'], variables: [] });
+    assert.deepEqual(config.selected, ['copilot']);
+    assert.throws(() => selectProviders('openhands'));
+    assert.throws(() => selectProviders('github-aw'));
+    assert.deepEqual(requiredSettings(config), { secrets: ['COPILOT_GITHUB_TOKEN'], missing: [] });
     assert.throws(() => selectProviders('unknown'));
     assert.throws(() => requiredSettings({ selected: ['claude'], env: {} }), /CLAUDE_CODE_OAUTH_TOKEN/);
   } finally { await rm(dir, { recursive: true }); }
 });
 
+test('the GitHub CLI child keeps the shell credential location and excludes reviewer credentials', () => {
+  const env = githubCliEnvironment({ HOME: '/shell-home', GH_CONFIG_DIR: 'custom-gh', SSH_AUTH_SOCK: 'agent-socket',
+    CLAUDE_CODE_OAUTH_TOKEN: 'private', COPILOT_GITHUB_TOKEN: 'private', OPENCODE_GO_API_KEY: 'private' });
+  assert.equal(env.HOME, '/shell-home');
+  assert.equal(env.GH_CONFIG_DIR, 'custom-gh');
+  assert.equal(env.SSH_AUTH_SOCK, 'agent-socket');
+  assert.ok(!Object.values(env).includes('private'));
+});
+
+test('Windows gh recovers the native profile and preserves redirected AppData', { skip: process.platform !== 'win32' }, () => {
+  const env = githubCliEnvironment({ HOME: '/custom/home', AppData: 'Z:\\roaming' });
+  assert.equal(env.USERPROFILE, userInfo().homedir);
+  assert.equal(env.APPDATA, 'Z:\\roaming');
+  assert.equal(githubCliEnvironment({ UserProfile: 'Z:\\profile' }).USERPROFILE, 'Z:\\profile');
+});
+
+test('GitHub login is only requested when authentication is required', () => {
+  const calls = [];
+  const check = (failure, env = {}) => authenticateGitHub('gh', env, (_, args) => {
+    calls.push(args);
+    if (args[0] === 'api' && failure) throw failure;
+  });
+  check();
+  assert.deepEqual(calls, [['api', '--hostname', 'github.com', 'user', '--silent']]);
+  assert.throws(() => check({ status: 1, stderr: 'HTTP 503' }), /HTTP 503/);
+  assert.throws(() => check({ status: 1, stderr: 'HTTP 403' }), /HTTP 403/);
+  assert.throws(() => check({ status: 1, stderr: 'HTTP 401' }, { GH_TOKEN: 'test' }), /GH_TOKEN/);
+  assert.ok(calls.every(args => args[0] === 'api'));
+  check({ status: 4 });
+  assert.deepEqual(calls.at(-1), ['auth', 'login', '--hostname', 'github.com']);
+});
+
 function fakeConfig() {
   const commands = [], calls = [];
-  return { repo, selected: ['copilot', 'github-aw'], timeout: 100, env: { COPILOT_GITHUB_TOKEN: 'synthetic-secret' }, commands, calls,
+  return { repo, selected: ['copilot'], timeout: 100, env: { COPILOT_GITHUB_TOKEN: 'synthetic-secret', COPILOT_MODEL: 'test-model' }, commands, calls,
     gh: (args, input) => { commands.push({ args, input }); return ''; },
     api: (path, body, method) => {
       calls.push({ path, body, method });
@@ -69,7 +122,7 @@ function fakeConfig() {
     } };
 }
 
-test('setup deduplicates shared auth and transmits secret values through stdin only', async () => {
+test('setup configures the selected subscription credential through stdin only', async () => {
   const config = fakeConfig();
   let saved;
   await setup(config, { save: async (path, value) => { saved = value; } });
@@ -78,7 +131,8 @@ test('setup deduplicates shared auth and transmits secret values through stdin o
   assert.equal(secrets.length, 1);
   assert.equal(secrets[0].input, 'synthetic-secret');
   assert.ok(config.commands.every(command => !command.args.join(' ').includes('synthetic-secret')));
-  assert.equal(config.commands.filter(command => command.args[0] === 'label').length, 5);
+  assert.equal(config.commands.filter(command => command.args[0] === 'label').length, 3);
+  assert.deepEqual(config.commands.filter(command => command.args[0] === 'variable').map(command => command.args[2]), ['DEMO_REVIEWERS']);
 });
 
 test('remote setup refuses a missing main workflow before creating any PR', () => {
@@ -93,6 +147,23 @@ test('image build failure is surfaced before creating comparison PRs', async () 
   let ticks = 0;
   const config = { repo, timeout: 100, gh: () => {}, api: path => path.includes('/runs?') ? { workflow_runs: [{ id: 8, head_sha: main, status: 'in_progress' }] } : { status: 'completed', conclusion: 'failure', html_url: 'https://example.test/failure' } };
   await assert.rejects(ensureImage(config, main, { now: () => ticks++, sleep: async () => {} }), /Image build failure/);
+});
+
+test('setup waits for the newly dispatched image when a previous attempt just failed', async () => {
+  const failed = { id: 8, head_sha: main, status: 'completed', conclusion: 'failure', created_at: new Date().toISOString() };
+  const queued = { id: 9, head_sha: main, status: 'queued', html_url: 'https://example.test/build/9' };
+  let polls = 0, dispatched = 0;
+  let time = Date.parse(failed.created_at);
+  const config = {
+    repo, timeout: 100, gh: () => { dispatched++; },
+    api: path => {
+      if (path.endsWith('/runs/9')) return { ...queued, status: 'completed', conclusion: 'success' };
+      return { workflow_runs: ++polls > 2 ? [queued, failed] : [failed] };
+    },
+  };
+  const build = await ensureImage(config, main, { sleep: async () => {}, now: () => time++ });
+  assert.equal(build.id, 9);
+  assert.equal(dispatched, 1);
 });
 
 test('demo PR uses main, one small JSON diff, and no local git mutations', () => {

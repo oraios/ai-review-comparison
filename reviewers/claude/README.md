@@ -1,17 +1,11 @@
 # Claude Code Action
 
-Implemented manual workflow: [review-claude.yml](../../.github/workflows/review-claude.yml). Acceptance is **BLOCKED until an authenticated hosted run publishes a review**.
+**Account and model.** Sign in to Claude Code with a Pro or Max subscription and run `claude setup-token`. Put the token in `.env` and include `claude` in `DEMO_REVIEWERS`. The workflow selects Claude Sonnet 5.5 with `--model claude-sonnet-5-5 --effort medium`. The shorter `sonnet` alias follows the current Sonnet release. [Anthropic model configuration](https://code.claude.com/docs/en/model-config)
 
-For a local report, set `CLAUDE_CODE_OAUTH_TOKEN` in your shell and run `npm run review:local -- --reviewer claude --pr 123`. Docker is the default; `--runtime native` uses installed tools. The [local guide](../../docs/LOCAL_RUNS.md) explains setup. Local [run.mjs](run.mjs) invokes the CLI with the Action's review settings, without the Action wrapper or GitHub publisher.
-
-Use Claude Pro/Max and `claude setup-token`, then `gh secret set CLAUDE_CODE_OAUTH_TOKEN`. The official Action receives `claude_code_oauth_token` and the job's read-only `github.token`. This explicit GitHub-token arrangement does not require the Claude App; native mention integrations may use [the App](https://github.com/apps/claude). [Official setup](https://github.com/anthropics/claude-code-action/blob/main/docs/setup.md).
-
-`config.json` selects the `sonnet` model alias and subscription auth. The action and CLI are pinned separately. Edit `prompt.md` for review instructions, `mcp.template.json` for project/Serena launch configuration, and run `node scripts/generate-workflows.mjs` after model/workflow changes. The workflow disables built-in tools and auto permission decisions and allows only the four demo MCP tools. A separate job posts a COMMENT review.
-
-After the main image build and same-repository pricing-only PR exist:
-
-```bash
-gh workflow run review-claude.yml --ref main -f pr_number=123
+```dotenv
+CLAUDE_CODE_OAUTH_TOKEN=your-subscription-token
 ```
 
-Artifacts: `claude-input-RUN-ATTEMPT`, `claude-evidence-RUN-ATTEMPT`, `claude-publication-RUN-ATTEMPT`. A 401/expired token/limit failure remains BLOCKED; API auth is never attempted. See [root setup](../../README.md), [auth matrix](../../docs/AUTH_MATRIX.md), [trigger matrix](../../docs/TRIGGER_MATRIX.md).
+**Initial review.** Run the [two demo commands](../../docs/SETUP.md). The demo applies `review:claude`. A maintainer can apply that label to an eligible existing PR, or dispatch `review-claude.yml` on `main` with `pr_number`. The Action launches Claude inside the pinned project image with the project and Serena MCP servers. A separate job publishes its review.
+
+**Follow-up.** Post a new conversation comment such as `/review claude Which assumption does your finding depend on?`. A new session sees the current head, question and previous Claude review when available. After pushing commits, post the command again or reapply the label. Commit-message tags, inline replies and native `@claude` mentions do not trigger this configured workflow. [Trigger reference](../../docs/TRIGGER_MATRIX.md)

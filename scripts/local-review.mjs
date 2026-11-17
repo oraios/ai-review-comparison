@@ -11,7 +11,7 @@ const help = `Run an existing fixture PR through a local review adapter (never p
 npm run review:local -- --reviewer copilot --pr 123 [--repo OWNER/REPO]
 npm run review:local -- --reviewer claude --fixture regression --runtime native --prepare-only
 
---reviewer       claude | copilot | opencode | openhands
+--reviewer       claude | copilot | opencode
 --pr             Existing open, same-repository numeric fixture PR
 --repo           Defaults to gh repo view in this checkout (GitHub.com)
 --fixture        healthy | regression: synthetic data (supply --image for offline Docker)
@@ -20,7 +20,6 @@ npm run review:local -- --reviewer claude --fixture regression --runtime native 
 --output         Parent for a fresh run directory (default artifacts/local-reviews)
 --prepare-only   Prepare prompt and MCP configuration without inference
 --serena         Native Serena executable (default .venv-serena)
---python         Native OpenHands Python executable (default .venv-openhands)
 
 Credentials come from environment variables, not GitHub Actions secrets.
 See docs/LOCAL_RUNS.md for setup and the differences from hosted execution.`;
@@ -53,8 +52,7 @@ async function main() {
   const executable = value => value && (value.includes('/') || value.includes('\\')) && !isAbsolute(value) ? resolve(value) : value;
   const execution = { runtime: options.runtime, inputSource: options.pr ? 'GitHub PR snapshot' : `synthetic ${options.fixture}`,
     checkoutRevision, checkoutDirty, published: false,
-    serena: executable(options.serena) || resolve(root, '.venv-serena', process.platform === 'win32' ? 'Scripts/serena.exe' : 'bin/serena'),
-    python: executable(options.python) || resolve(root, '.venv-openhands', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python') };
+    serena: executable(options.serena) || resolve(root, '.venv-serena', process.platform === 'win32' ? 'Scripts/serena.exe' : 'bin/serena') };
   try {
     await writeJson(resolve(directory, 'seed.json'), input);
     let command; let args; let env;
@@ -77,7 +75,7 @@ async function main() {
       await writeJson(resolve(directory, 'seed.json'), input);
       command = 'docker'; args = dockerRunArgs({ directory, imageId: inspected.Id, reviewer: options.reviewer, prepareOnly: options['prepare-only'] });
       // Docker needs the host's context/registry login; only named --env values enter the container.
-      env = { ...process.env, LLM_MODEL: process.env.LLM_MODEL || process.env.OPENHANDS_MODEL || '' };
+      env = process.env;
     } else {
       command = process.execPath; args = [resolve(root, 'scripts/local-worker.mjs'), options.reviewer, directory,
         ...(options['prepare-only'] ? ['--prepare-only'] : [])];

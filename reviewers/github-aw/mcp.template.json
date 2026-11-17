@@ -1,6 +1,0 @@
-{
-  "mcpServers": {
-    "project": { "command": "$NODE", "args": ["$LAUNCHER", "project", "$RUN_DIRECTORY"] },
-    "serena": { "command": "$NODE", "args": ["$LAUNCHER", "serena", "$RUN_DIRECTORY"] }
-  }
-}

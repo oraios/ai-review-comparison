@@ -49,7 +49,9 @@ The scope now includes hosted and setup-based comparators, even without a replac
 | Claude subscription tokens for scripts | https://code.claude.com/docs/en/authentication |
 | Codex local stdin/noninteractive execution | https://learn.chatgpt.com/docs/non-interactive-mode |
 | OpenAI Codex GitHub review | https://learn.chatgpt.com/docs/third-party/github |
+| Base image and setup options for hosted Codex GitHub reviews | https://learn.chatgpt.com/docs/environments/cloud-environment#default-universal-image |
+| OpenAI Support on running nested containers | https://community.openai.com/t/codex-docker-in-docker-in-environment-setup/1272369/22 |
 | OpenAI cloud tasks vs legacy review environment | https://learn.chatgpt.com/docs/environments/cloud-environments |
 | GitHub's subscription-backed Codex agent | https://docs.github.com/en/copilot/concepts/agent-capabilities/about-agents/about-third-party-coding-agents |
 
-OpenHands Cloud remains distinct from the native SDK adapter. Other review services such as CodeRabbit, Greptile, Qodo, cubic, and Sourcery are outside the implemented set; this is not a claim that they lack all customization capabilities. Cline and goose are retained as explicit prototypes pending their selected authentication/integration validation.
+The OpenHands evaluation covered its native SDK. CodeRabbit, Greptile, Qodo, cubic and Sourcery were outside this comparison. The [discarded routes](DISCARDED.md) record the decisions for OpenHands, Cline, goose and the Codex integrations.

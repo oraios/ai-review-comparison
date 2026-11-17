@@ -11,7 +11,7 @@ LABEL org.opencontainers.image.source=$IMAGE_SOURCE \
 ENV DEBIAN_FRONTEND=noninteractive \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
     UV_PYTHON_INSTALL_DIR=/opt/python \
-    PATH="/opt/review-demo/image/agents/node_modules/.bin:/opt/openhands-venv/bin:/opt/serena-venv/bin:/opt/uv/bin:${PATH}"
+    PATH="/opt/review-demo/image/agents/node_modules/.bin:/opt/serena-venv/bin:/opt/uv/bin:${PATH}"
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 python3-venv git gh curl jq ripgrep unzip ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
@@ -30,9 +30,6 @@ RUN git clone https://github.com/oraios/serena.git /opt/serena-source \
     && git -C /opt/serena-source checkout --detach 6e5c3776d4e67befaab7c290bc29b0279c98d1ed \
     && cd /opt/serena-source \
     && UV_PROJECT_ENVIRONMENT=/opt/serena-venv uv sync --frozen --no-dev --python 3.13.9
-COPY reviewers/openhands/requirements.txt /tmp/openhands-requirements.txt
-RUN uv venv /opt/openhands-venv --python 3.13.9 \
-    && uv pip sync --python /opt/openhands-venv/bin/python --require-hashes /tmp/openhands-requirements.txt
 COPY demo ./demo
 COPY scripts ./scripts
 COPY mcp ./mcp
@@ -45,7 +42,6 @@ RUN IMAGE_REVISION=$IMAGE_REVISION IMAGE_SOURCE=$IMAGE_SOURCE node image/write-p
     && npm run check \
     && npm run smoke \
     && node scripts/local-demo.mjs /opt/serena-venv/bin/serena /tmp/image-smoke \
-    && python -c "from openhands.sdk import Agent, Conversation, LLM; from openhands.sdk.mcp import MCPServer" \
     && rm -rf /tmp/image-smoke
 # GitHub job containers need an ordinary shell, no Docker socket or nested daemon.
 CMD ["bash"]

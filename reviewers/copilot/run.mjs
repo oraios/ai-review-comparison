@@ -4,10 +4,11 @@ import { spawn } from 'node:child_process';
 import { cleanEnv, readJson } from '../../scripts/lib.mjs';
 
 const directory = resolve(process.argv[2]);
-const { model } = await readJson(new URL('./config.json', import.meta.url));
+const { model, effort } = await readJson(resolve(directory, 'environment.json'));
 if (!process.env.COPILOT_GITHUB_TOKEN) throw new Error('BLOCKED: AUTH_MISSING — COPILOT_GITHUB_TOKEN');
 const child = spawn('copilot', [
   '-p', await readFile(resolve(directory, 'prompt.txt'), 'utf8'), '-s', '--model', model,
+  '--reasoning-effort', effort,
   '--no-auto-update', '--no-custom-instructions', '--disable-builtin-mcps', '--no-ask-user',
   '--additional-mcp-config', `@${resolve(directory, 'copilot-mcp.json')}`,
   '--allow-tool', 'project(review_context)', '--allow-tool', 'project(run_checks)',
