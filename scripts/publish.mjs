@@ -3,12 +3,14 @@ import { resolve } from 'node:path';
 import { appendFile } from 'node:fs/promises';
 import { readJson, readAudit, writeJson } from './lib.mjs';
 import { github, repository, prNumber, validatePull } from './github.mjs';
-import { validateSubmission, validateImage } from './evidence.mjs';
+import { matchesReviewLine, validateSubmission, validateImage } from './evidence.mjs';
+import { changedReviewLines } from './pr-snapshot.mjs';
+
+// Prevent mentions and untrusted HTML from being rendered as active notifications/markup.
+const safe = text => text.replaceAll('@', '@\u200b').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 
 export function reviewBody(result) {
   const { input, environment: env, review } = result;
-  // Prevent mentions and untrusted HTML from being rendered as active notifications/markup.
-  const safe = text => text.replaceAll('@', '@\u200b').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
   return [`<!-- ai-review-demo:${env.reviewer}:${input.head}:${env.run}:${env.attempt} -->`,
     `## AI review demo · ${env.reviewer}`, `Model: \`${env.model}\` · Auth: \`${env.auth}\``,
     `Version manifest: \`${JSON.stringify(env.versions)}\``, `Commit: \`${input.head}\``,
@@ -31,12 +33,21 @@ export async function publishResult(result, { env = process.env, request = githu
   validateImage(result.environment, env.GITHUB_SHA);
   validateSubmission(result.review, audit);
   const { repository: repo, number, head } = result.input;
+  const files = await request(`/repos/${repo}/pulls/${number}/files?per_page=100`);
   const current = await request(`/repos/${repo}/pulls/${number}`);
-  validatePull(current, repo, await request(`/repos/${repo}/pulls/${number}/files?per_page=100`));
+  validatePull(current, repo, files);
   assert.equal(current.head.sha, head, 'PR head changed. Dispatch a new review.');
+  const lines = changedReviewLines(files[0].patch);
+  // The left side belongs to the base revision. Keep its findings in the summary if the base moved.
+  const comments = result.review.findings.filter(f => matchesReviewLine(lines, f.location) &&
+    (f.location.side === 'RIGHT' || current.base.sha === result.input.base)).map(f => ({
+    path: f.path, line: f.location.line, side: f.location.side,
+    body: `**[${f.severity}] ${safe(f.title)}**\n\n${safe(f.body)}`,
+  }));
   // Explicit commit_id keeps the published review associated with the inspected snapshot.
   const published = await request(`/repos/${repo}/pulls/${number}/reviews`, {
-    method: 'POST', body: JSON.stringify({ commit_id: head, event: 'COMMENT', body: reviewBody(result) }),
+    method: 'POST', body: JSON.stringify({ commit_id: head, event: 'COMMENT', body: reviewBody(result),
+      ...(comments.length ? { comments } : {}) }),
   });
   assert.ok(published.id && published.html_url, 'No GitHub publication receipt.');
   result.status = 'PASS';

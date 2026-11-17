@@ -16,6 +16,7 @@ server.registerTool('review_context', {
 }, async () => {
   const result = { marker, requirement: 'Shipping costs 499 cents below 5000 cents; shipping is free at or above 5000 cents.',
     before: input.before, after: input.after, path: 'demo/pricing.json', head: input.head,
+    changedLines: input.changedLines ?? [],
     repository: input.repository, number: input.number, base: input.base,
     instructions: await readFile(resolve(directory, 'prompt.txt'), 'utf8'),
     source: await readFile(resolve(root, 'demo/pricing.mjs'), 'utf8'),

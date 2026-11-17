@@ -20,19 +20,26 @@ const archives = {
   windows_arm64: 'd56fbf5b9ad32e5985e3e7e1d8f4d28ae2994618986cd2cba9b50ac710dffe01',
 };
 
-export function githubCliEnvironment(environment) {
+export function githubCliEnvironment(environment, platform = process.platform) {
   const excluded = new Set([...Object.values(providers).flatMap(p => p.secrets), 'LLM_API_KEY', 'GH_TOKEN', 'GITHUB_TOKEN']);
+  const windows = platform === 'win32';
   const env = {};
   for (const [name, value] of Object.entries(environment)) {
-    const key = process.platform === 'win32' ? name.toUpperCase() : name;
+    const key = windows ? name.toUpperCase() : name;
     if (!excluded.has(key)) env[key] = value;
   }
-  if (process.platform === 'win32') {
-    // A native gh.exe needs the Windows profile even when npm is launched by Git Bash.
-    env.USERPROFILE ||= userInfo().homedir;
-    if (!env.APPDATA && !existsSync(win32.join(env.USERPROFILE, '.config', 'gh', 'hosts.yml'))) {
-      env.APPDATA = win32.join(env.USERPROFILE, 'AppData', 'Roaming');
+  const homeKey = windows ? 'USERPROFILE' : 'HOME';
+  if (!env[homeKey]) {
+    try { env[homeKey] = userInfo().homedir; }
+    catch (error) {
+      // Containers can run as a UID without a passwd entry. gh can still use a token or explicit config.
+      if (error.info?.code !== 'ENOENT') throw error;
     }
+  }
+  if (windows && env.USERPROFILE && !env.APPDATA && !env.GH_CONFIG_DIR && !env.XDG_CONFIG_HOME &&
+      !existsSync(win32.join(env.USERPROFILE, '.config', 'gh', 'hosts.yml'))) {
+    // Native gh on Windows normally looks in roaming AppData. A stripped shell can omit it.
+    env.APPDATA = win32.join(env.USERPROFILE, 'AppData', 'Roaming');
   }
   return env;
 }

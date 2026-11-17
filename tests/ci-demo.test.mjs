@@ -74,20 +74,36 @@ test('dotenv parsing treats shell syntax as data and only selected settings are 
   } finally { await rm(dir, { recursive: true }); }
 });
 
-test('the GitHub CLI child keeps the shell credential location and excludes reviewer credentials', () => {
-  const env = githubCliEnvironment({ HOME: '/shell-home', GH_CONFIG_DIR: 'custom-gh', SSH_AUTH_SOCK: 'agent-socket',
-    CLAUDE_CODE_OAUTH_TOKEN: 'private', COPILOT_GITHUB_TOKEN: 'private', OPENCODE_GO_API_KEY: 'private' });
-  assert.equal(env.HOME, '/shell-home');
-  assert.equal(env.GH_CONFIG_DIR, 'custom-gh');
-  assert.equal(env.SSH_AUTH_SOCK, 'agent-socket');
-  assert.ok(!Object.values(env).includes('private'));
+test('the GitHub CLI child keeps the shell credential settings across supported platforms', () => {
+  const shell = { HOME: '/shell-home', GH_CONFIG_DIR: 'custom-gh', XDG_CONFIG_HOME: 'custom-xdg',
+    SSH_AUTH_SOCK: 'agent-socket', DBUS_SESSION_BUS_ADDRESS: 'session-bus',
+    CLAUDE_CODE_OAUTH_TOKEN: 'private', COPILOT_GITHUB_TOKEN: 'private', OPENCODE_GO_API_KEY: 'private' };
+  for (const platform of ['linux', 'darwin', 'win32']) {
+    const env = githubCliEnvironment(shell, platform);
+    for (const key of ['HOME', 'GH_CONFIG_DIR', 'XDG_CONFIG_HOME', 'SSH_AUTH_SOCK', 'DBUS_SESSION_BUS_ADDRESS']) {
+      assert.equal(env[key], shell[key]);
+    }
+    assert.ok(!Object.values(env).includes('private'));
+  }
 });
 
-test('Windows gh recovers the native profile and preserves redirected AppData', { skip: process.platform !== 'win32' }, () => {
-  const env = githubCliEnvironment({ HOME: '/custom/home', AppData: 'Z:\\roaming' });
+test('missing HOME on Linux or macOS uses the OS account home', () => {
+  for (const platform of ['linux', 'darwin']) {
+    const env = githubCliEnvironment({}, platform);
+    assert.equal(env.HOME, userInfo().homedir);
+    assert.equal(env.USERPROFILE, undefined);
+    assert.equal(env.APPDATA, undefined);
+  }
+});
+
+test('Windows gh recovers the native profile and preserves redirected or explicit configuration', () => {
+  const env = githubCliEnvironment({ HOME: '/custom/home', AppData: 'Z:\\roaming' }, 'win32');
   assert.equal(env.USERPROFILE, userInfo().homedir);
   assert.equal(env.APPDATA, 'Z:\\roaming');
-  assert.equal(githubCliEnvironment({ UserProfile: 'Z:\\profile' }).USERPROFILE, 'Z:\\profile');
+  const explicit = githubCliEnvironment({ UserProfile: 'Z:\\profile', Gh_Config_Dir: 'Z:\\gh' }, 'win32');
+  assert.equal(explicit.USERPROFILE, 'Z:\\profile');
+  assert.equal(explicit.GH_CONFIG_DIR, 'Z:\\gh');
+  assert.equal(explicit.APPDATA, undefined);
 });
 
 test('GitHub login is only requested when authentication is required', () => {

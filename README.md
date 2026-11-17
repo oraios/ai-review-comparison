@@ -21,6 +21,8 @@ npm run demo-review-on-gh
 
 Setup configures GitHub and waits for the images published from `main`. The demo creates one PR per selected reviewer, applies its label and prints the resulting review URLs. GitHub starts Serena automatically. [Credentials and first-run setup](docs/SETUP.md)
 
+Each reviewer posts a summary in the PR conversation and attaches findings to the relevant changed lines in **Files changed**. Findings without an available diff line appear in the summary.
+
 ## Request follow-up work on a PR
 
 Post a **new top-level PR conversation comment** beginning with `/review`, the reviewer ID and your question. For example:

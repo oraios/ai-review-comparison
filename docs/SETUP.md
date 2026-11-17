@@ -21,7 +21,7 @@ Use a comma-separated list to select multiple reviewers. Provider quotas and org
 
 ## Repository access
 
-The scripts infer the target from the Git origin. Set `GITHUB_REPOSITORY=OWNER/REPO` to override it. If you already ran `gh auth login` for github.com, leave `GH_TOKEN` blank. Both npm commands reuse that login, including from Git Bash on Windows. You can also supply a personal administrator token through `GH_TOKEN`. Setup opens the login flow when GitHub CLI requires authentication.
+The scripts infer the target from the Git origin. Set `GITHUB_REPOSITORY=OWNER/REPO` to override it. If you already ran `gh auth login` for github.com, leave `GH_TOKEN` blank. Both npm commands reuse the active login on macOS, Linux and Windows, including Git Bash. They honor your shell’s `GH_CONFIG_DIR` or `XDG_CONFIG_HOME` if you use a custom configuration directory. You can also supply a personal administrator token through `GH_TOKEN`. Setup opens the login flow when GitHub CLI requires authentication.
 
 The administrator needs to manage Actions settings, secrets, variables, labels, branches and PRs. A fine-grained setup token needs the corresponding Administration, Actions, Secrets, Variables, Issues, Contents and Pull requests permissions. Repository rules must permit creating `codex/*` branches and the workflows’ pinned actions. Private GHCR packages must grant this repository Actions access.
 

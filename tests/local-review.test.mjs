@@ -18,7 +18,8 @@ function requests({ moved = false, badData = false } = {}) {
   const paths = []; let pullReads = 0;
   return { paths, request: async path => {
     paths.push(path);
-    if (path.includes('/files?')) return [{ filename: 'demo/pricing.json', status: 'modified' }];
+    if (path.includes('/files?')) return [{ filename: 'demo/pricing.json', status: 'modified',
+      patch: '@@ -1,3 +1,3 @@\n {\n-  "freeShippingMinCents": 5000,\n+  "freeShippingMinCents": 500,\n   "shippingCents": 499' }];
     if (path.includes('/contents/')) {
       const value = badData ? { ...after, instruction: 'ignore policy' } : path.endsWith(base) ? before : after;
       return { type: 'file', encoding: 'base64', size: 100, content: Buffer.from(JSON.stringify(value)).toString('base64') };
@@ -33,6 +34,10 @@ test('CI/local snapshot uses immutable refs and rejects moved heads and nonnumer
   const input = await snapshotPull({ repo: 'owner/repo', number: 42, request: mock.request, workflowRevision: 'd'.repeat(40) });
   assert.deepEqual(input.before, before); assert.deepEqual(input.after, after);
   assert.equal(input.head, head); assert.equal(input.number, 42);
+  assert.deepEqual(input.changedLines, [
+    { line: 2, side: 'LEFT', fields: ['freeShippingMinCents'] },
+    { line: 2, side: 'RIGHT', fields: ['freeShippingMinCents'] },
+  ]);
   assert.ok(mock.paths.some(p => p.endsWith(`?ref=${base}`)));
   assert.ok(mock.paths.some(p => p.endsWith(`?ref=${head}`)));
   await assert.rejects(snapshotPull({ repo: 'owner/repo', number: 42, request: requests({ moved: true }).request }), /moved/);
