@@ -3,8 +3,8 @@
 | Reviewer | Request a review or ask a question | Workflow |
 | --- | --- | --- |
 | Claude Code | `@claude QUESTION` in a PR comment, inline review comment or review body | `review-claude.yml` |
-| Copilot CLI | `/copilot QUESTION` at the start of a PR comment or inline review comment | `review-copilot.yml` |
-| OpenCode | `review:opencode` label, or `/review opencode QUESTION` as a new top-level PR comment | `review-opencode.yml` via `review-label.yml` |
+| Copilot CLI | `/copilot QUESTION` at the start of a PR comment, inline review comment or review body | `review-copilot.yml` |
+| OpenCode | `review:opencode` label, or `/oc QUESTION` (or `/opencode`) in a PR comment or inline review comment | `review-opencode.yml` |
 
 ## Claude Code: native `@claude`
 
@@ -17,16 +17,14 @@ The job runs in the project image; `claude_args` adds Serena MCP and review guid
 `@copilot` in a PR starts GitHub's own Copilot cloud agent, which makes commits, and native Copilot code review does not read replies to its comments. This demo therefore uses a slash command. `review-copilot.yml` reproduces what the Claude action does itself:
 
 - the job starts for comments beginning with `/copilot` and stops unless the commenter has write, maintain or admin permission;
-- it reacts with 👀, checks out the PR head and starts Serena in the project image;
+- it reacts with 👀 (GitHub has no reactions on submitted reviews), checks out the PR head and starts Serena in the project image;
 - the prompt names the PR and comment; Copilot reads the PR and discussion with `gh`;
-- Copilot posts a summary with `gh pr comment` and inline findings through the review-comments API, or replies in the inline thread it was asked in.
+- Copilot posts a summary with `gh pr comment` and inline findings through the review-comments API, or replies in the inline thread it was asked in. A request in a review body is answered in the PR conversation.
 
-## OpenCode: label router
+## OpenCode: native `/oc`
 
-OpenCode keeps the original pipeline: `review-label.yml` routes the `review:opencode` label or a `/review opencode` comment to `review-opencode.yml` through `workflow_dispatch`. That workflow reviews the numeric fixture with project MCP tools in a read-only job, and a separate job validates the evidence and publishes. Edited comments, inline replies and commit-message tags do not dispatch it. A maintainer can also dispatch it manually:
+`review-opencode.yml` runs `opencode github run`, OpenCode's own GitHub agent (what the upstream `anomalyco/opencode/github` action runs), from the CLI pinned in the project image. A comment that mentions `/oc` or `/opencode` is the prompt; the `review:opencode` label starts a run with OpenCode's default prompt, "Review this pull request". The agent checks the commenter's write access, reacts with 👀, checks out the PR branch and answers in the PR conversation, also for questions from an inline thread. It does not handle review bodies.
 
-```sh
-gh workflow run review-opencode.yml --ref main -f pr_number=123
-```
+The workflow passes an OpenCode config with the Go provider, Serena MCP, denied file edits and two instruction files (`review/INSTRUCTIONS.md`, `reviewers/opencode/github.md`).
 
 [Setup](SETUP.md) · [Security model](SECURITY.md)

@@ -5,7 +5,6 @@ import { tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
 import { configuration, requiredSettings, inspectRepository, ensureImage } from '../scripts/ci-demo.mjs';
 import { authenticateGitHub, githubCliEnvironment } from '../scripts/github-cli.mjs';
-import { authorizeDispatch } from '../scripts/authorize-dispatch.mjs';
 import { selectProviders } from '../scripts/providers.mjs';
 import { setup } from '../scripts/setup-ci-secrets.mjs';
 import { createDemoPull, awaitReviews } from '../scripts/demo-review-on-gh.mjs';
@@ -14,43 +13,6 @@ const repo = 'owner/repo';
 const main = 'a'.repeat(40);
 const head = 'b'.repeat(40);
 const pricing = { sha: 'c'.repeat(40), content: Buffer.from('{\n  "freeShippingMinCents": 5000,\n  "shippingCents": 499\n}\n').toString('base64') };
-const env = { GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_REF: 'refs/heads/main', REVIEWER: 'opencode',
-  GITHUB_ACTOR: 'github-actions[bot]', GITHUB_TRIGGERING_ACTOR: 'github-actions[bot]', ROUTER_RUN_ID: '123' };
-function authorizationRequest(overrides = {}) {
-  return async path => {
-    if (path.includes('/actions/runs/')) return { workflow_id: 7, event: 'pull_request_target', path: '.github/workflows/review-label.yml', repository: { full_name: repo }, actor: { login: 'maintainer' }, ...overrides.run };
-    if (path.includes('/actions/workflows/')) return { id: 7 };
-    if (path.includes('/pulls/')) return { labels: [{ name: 'review:opencode' }], ...overrides.pr };
-    return { permission: overrides.permission ?? 'write' };
-  };
-}
-
-test('label delegation authorizes the human and rejects forged router IDs, removed labels, and readers', async () => {
-  await authorizeDispatch({ repo, number: 1, env, request: authorizationRequest() });
-  for (const overrides of [{ run: { workflow_id: 8 } }, { run: { event: 'push' } }, { pr: { labels: [] } }, { permission: 'read' }]) {
-    await assert.rejects(authorizeDispatch({ repo, number: 1, env, request: authorizationRequest(overrides) }));
-  }
-  await assert.rejects(authorizeDispatch({ repo, number: 1, env: { ...env, ROUTER_RUN_ID: '' }, request: authorizationRequest() }));
-});
-
-test('manual dispatch and reruns both require maintainer access', async () => {
-  const people = [];
-  await assert.rejects(authorizeDispatch({ repo, number: 1, env: { ...env, GITHUB_ACTOR: 'maintainer', GITHUB_TRIGGERING_ACTOR: 'reader' }, request: async path => {
-    people.push(path); return { permission: path.includes('/reader/') ? 'read' : 'write' };
-  } }));
-  assert.equal(people.length, 2);
-});
-
-test('a follow-up must be an unedited maintainer command on this PR for this reviewer', async () => {
-  const comment = { user: { login: 'maintainer', type: 'User' }, issue_url: `https://api.github.com/repos/${repo}/issues/1`,
-    body: '/review opencode Explain the new evidence.', created_at: 't1', updated_at: 't1' };
-  const check = (changes = {}) => authorizeDispatch({ repo, number: 1, env: { ...env, COMMENT_ID: '12' },
-    request: path => path.includes('/issues/comments/') ? { ...comment, ...changes } :
-      authorizationRequest({ run: { event: 'issue_comment' } })(path) });
-  assert.deepEqual(await check(), { author: 'maintainer', commentId: '12', question: 'Explain the new evidence.' });
-  for (const changes of [{ updated_at: 't2' }, { user: { login: 'other' } }, { body: '/review claude Hello' },
-    { issue_url: `https://api.github.com/repos/${repo}/issues/2` }]) await assert.rejects(check(changes));
-});
 
 test('only single-container subscription reviewers are selectable', () => {
   assert.deepEqual(selectProviders(), ['claude', 'copilot', 'opencode']);
@@ -207,16 +169,6 @@ test('demo PR uses main, one small JSON diff, and no local git mutations', () =>
   assert.equal(pr.head, head);
 });
 
-test('review waiter requires a bot review of the exact PR head and provider', async () => {
-  let count = 0, ticks = 0, saved = 0;
-  const manifest = { pulls: [{ provider: 'claude', number: 9, head }] };
-  const config = { repo, timeout: 100, api: () => [{ user: { login: 'github-actions[bot]' }, commit_id: ++count === 1 ? main : head,
-    body: `<!-- ai-review-demo:claude:${head}:1:1 -->`, html_url: 'https://example.test/review' }] };
-  await awaitReviews(config, manifest, async () => saved++, { now: () => ticks++, sleep: async () => {} });
-  assert.equal(count, 2); assert.equal(saved, 1);
-  assert.equal(manifest.pulls[0].review, 'https://example.test/review');
-});
-
 test('comment-triggered reviewers are requested by comment, not label', () => {
   const config = { repo, api: path => path.endsWith('/pulls') ? { number: 9, html_url: 'https://example.test/pr/9' } : { commit: { sha: head } } };
   assert.deepEqual(Object.keys(createDemoPull(config, 'claude', { main, pricing }, 'u')).filter(key => ['label', 'command'].includes(key)), ['command']);
@@ -238,4 +190,15 @@ test('review waiter follows the agent workflow run and ignores skipped runs', as
   const failed = { pulls: [{ ...manifest.pulls[0], review: undefined }] };
   await assert.rejects(awaitReviews({ repo, timeout: 100, api: () => ({ workflow_runs: [{ ...done, conclusion: 'failure' }] }) }, failed, async () => {},
     { now: () => ticks++, sleep: async () => {} }), /claude review failure/);
+});
+
+test('a labelled reviewer is awaited through its pull_request run', async () => {
+  let ticks = 0;
+  const manifest = { pulls: [{ provider: 'opencode', number: 9, head, url: 'https://example.test/pr/9', label: 'review:opencode', requestedAt: '2026-11-17T00:00:00Z' }] };
+  const config = { repo, timeout: 100, api: path => {
+    assert.ok(path.includes('review-opencode.yml/runs?event=pull_request&'), path);
+    return { workflow_runs: [{ status: 'completed', conclusion: 'success', html_url: 'https://example.test/run' }] };
+  } };
+  await awaitReviews(config, manifest, async () => {}, { now: () => ticks++, sleep: async () => {} });
+  assert.equal(manifest.pulls[0].run, 'https://example.test/run');
 });

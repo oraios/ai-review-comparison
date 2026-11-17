@@ -1,6 +1,6 @@
 # Results
 
-> **17 November 2026:** the Claude and Copilot GitHub workflows were replaced by comment-triggered workflows (`@claude`, `/copilot`) that run the agents directly on the PR. The results below predate that change; the new workflows have not yet run on GitHub.
+> **17 November 2026:** the GitHub workflows were replaced by the reviewers' native triggers (`@claude`, `/copilot`, `/oc` and the `review:opencode` label), which run the agents directly on the PR. The label router, evidence validation and publish job were removed from GitHub; they survive only in local runs. The results below predate that change; the new workflows have not been verified end to end on GitHub.
 
 **The hosted Linux image build passed on 16 November 2026.** GitHub Actions built commit `433a528`, ran the fixture tests, exercised real Serena over MCP and Chromium inside the image, then published the linux/amd64 image. The GHCR index digest was `sha256:c0188b2abb6d59c31609d42c4c5b4f62d6e8f1f1011889e509e68485fe1c028d`. [Build and publication log](https://github.com/oraios/ai-review-comparison/actions/runs/43897795402) · [Fixture CI](https://github.com/oraios/ai-review-comparison/actions/runs/43897795525)
 

@@ -69,8 +69,7 @@ export function inspectRepository({ api, repo, selected }, { admin = false } = {
   if (info.default_branch !== 'main') throw new Error('This demo requires main as the default branch.');
   if (admin ? !info.permissions?.admin : !info.permissions?.push) throw new Error(`Repository ${admin ? 'admin' : 'write'} access is required.`);
   const main = api(`/repos/${repo}/git/ref/heads/main`).object.sha;
-  const router = selected.some(name => providers[name].label) ? ['review-label.yml'] : [];
-  const files = ['build-image.yml', ...router, ...selected.map(name => providers[name].workflow)];
+  const files = ['build-image.yml', ...selected.map(name => providers[name].workflow)];
   for (const file of files) {
     try { api(`/repos/${repo}/contents/.github/workflows/${file}?ref=${main}`); }
     catch { throw new Error(`Missing workflow ${file} on remote main. Commit and push this implementation to main first.`); }
@@ -83,7 +82,7 @@ export function inspectRepository({ api, repo, selected }, { admin = false } = {
 
 export function establishLabels({ gh, repo }) {
   for (const [name, provider] of Object.entries(labelled)) gh(['label', 'create', provider.label, '--repo', repo,
-    '--color', provider.color, '--description', `Run ${name} review of the controlled fixture`, '--force']);
+    '--color', provider.color, '--description', `Request a ${name} review`, '--force']);
 }
 
 export async function ensureImage(config, main, { sleep = delay, now = Date.now } = {}) {

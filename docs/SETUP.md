@@ -39,4 +39,4 @@ To preview either command, append `-- --dry-run`. Use `-- --no-wait` with the de
 
 ## If a review does not arrive
 
-Open **Actions → Publish review image** for image and gh-aw compilation errors. For Claude or Copilot, open **Review / claude** or **Review / copilot**; a run whose jobs were skipped did not match the trigger. For OpenCode, open **Route PR review request**, then **Review / opencode**; its publisher checks the PR head again and records GitHub’s review receipt in the publication artifact. Check model entitlement and provider quota if inference fails. A new comment retries an existing PR. [Review triggers](TRIGGER_MATRIX.md) · [Provider authentication](AUTH_MATRIX.md)
+Open **Actions → Publish review image** for image and gh-aw compilation errors. Open **Review / claude**, **Review / copilot** or **Review / opencode**; a run whose job was skipped did not match the trigger. Check model entitlement and provider quota if inference fails. A new comment retries an existing PR. [Review triggers](TRIGGER_MATRIX.md) · [Provider authentication](AUTH_MATRIX.md)

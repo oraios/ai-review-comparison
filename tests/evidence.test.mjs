@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { validateSubmission, validateImage } from '../scripts/evidence.mjs';
-import { publishResult } from '../scripts/publish.mjs';
 import { changedReviewLines } from '../scripts/pr-snapshot.mjs';
 
 function fixture() {
@@ -56,53 +55,4 @@ test('findings can only select a line and side offered by the context tool', () 
   assert.throws(() => validateSubmission(review, events), /changedLines/);
   review.findings[0].location = location;
   validateSubmission(review, events);
-});
-
-test('each publication mode requires real evidence and a GitHub receipt, with the correct image claim', async () => {
-  for (const reviewer of ['claude', 'copilot', 'opencode']) {
-    const { events, review } = fixture();
-    const location = reviewer === 'claude' ? { line: 6, side: 'LEFT' } : { line: 7, side: 'RIGHT' };
-    events[0].result.changedLines = [location];
-    review.findings[0].location = location;
-    review.findings[0].body += ' Check with @owner <team>.';
-    const head = 'c'.repeat(40), revision = 'b'.repeat(40);
-    const result = { status: 'READY_TO_PUBLISH',
-      input: { repository: 'o/r', number: 1, head, base: revision }, review, evidence: { published: false },
-      environment: { reviewer, run: '2', attempt: '1', model: 'test', auth: 'test', versions: {},
-        imageRole: 'agent-and-mcp-tools',
-        image: `ghcr.io/o/r/review-env@sha256:${'a'.repeat(64)}`, marker: 'REVIEW_IMAGE_OK_2026', revision, platform: 'linux', arch: 'x64' } };
-    const env = { REVIEWER: reviewer, GITHUB_REPOSITORY: 'o/r', PR_NUMBER: '1', GITHUB_RUN_ID: '2', GITHUB_RUN_ATTEMPT: '1', GITHUB_SHA: revision };
-    let posts = 0;
-    let patch = '@@ -6 +7 @@\n-5000\n+500';
-    let currentBase = revision;
-    const request = async (path, options) => {
-      if (path.includes('/files?')) return [{ filename: 'demo/pricing.json', status: 'modified', patch }];
-      if (options) {
-        posts++;
-        const body = JSON.parse(options.body);
-        assert.equal(body.commit_id, head); assert.equal(body.event, 'COMMENT');
-        assert.ok(body.body.includes('Agent and MCP image'));
-        assert.ok(body.body.includes('Incorrect shipping threshold'));
-        if (patch && (location.side === 'RIGHT' || currentBase === revision)) {
-          assert.deepEqual(body.comments, [{ path: 'demo/pricing.json', ...location,
-            body: '**[P2] Incorrect shipping threshold**\n\nThe test at 4999 cents returned zero shipping although 499 cents is required. Check with @\u200bowner &lt;team&gt;.' }]);
-        } else {
-          assert.equal(body.comments, undefined);
-        }
-        return { id: 42, html_url: 'https://example.test/review' };
-      }
-      return { state: 'open', changed_files: 1, head: { sha: head, repo: { full_name: 'o/r' } }, base: { ref: 'main', sha: currentBase } };
-    };
-    await assert.rejects(publishResult(structuredClone(result), { env, request, audit: [] }));
-    assert.equal(posts, 0);
-    await publishResult(result, { env, request, audit: events });
-    assert.equal(posts, 1);
-    assert.equal(result.status, 'PASS');
-    assert.equal(result.publication.id, 42);
-    currentBase = 'd'.repeat(40);
-    await publishResult({ ...result, status: 'READY_TO_PUBLISH' }, { env, request, audit: events });
-    patch = undefined;
-    await publishResult({ ...result, status: 'READY_TO_PUBLISH' }, { env, request, audit: events });
-    assert.equal(posts, 3);
-  }
 });

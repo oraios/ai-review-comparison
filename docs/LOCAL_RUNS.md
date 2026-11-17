@@ -2,7 +2,7 @@
 
 Local execution reuses the demo's PR snapshot, custom instructions, MCP servers, pricing/browser checks, and structured review validation. It is useful for trying an agent or changing a prompt before a hosted run. The default local path uses the same Docker image; a native path runs installed tools on your machine.
 
-Local runs use the fixture pipeline (project MCP tools, receipts, evidence validation) for all three reviewers, including Claude and Copilot, whose GitHub workflows now run their agents directly on the PR. Local runs produce files and **never publish to GitHub**. They do not emulate Actions jobs, approvals, secrets, or hosted publication. GitHub CLI supplies repository access only; the selected agent still needs its own inference credential.
+Local runs use the fixture pipeline (project MCP tools, receipts, evidence validation) for all three reviewers, whose GitHub workflows instead run the agents directly on the PR. Local runs produce files and **never publish to GitHub**. They do not emulate Actions jobs, approvals, secrets, or hosted publication. GitHub CLI supplies repository access only; the selected agent still needs its own inference credential.
 
 ## Choose a local path
 
@@ -157,14 +157,14 @@ The [rejected gh-aw image experiment](../reviewers/github-aw/README.md) can be b
 
 Every invocation gets a fresh directory. `prompt.txt`, `input.json`, and `environment.json` explain what was reviewed; `mcp.jsonl`, `checks.json`, `smoke.png`, and `review.json` record actual tool evidence. A successful agent run adds `report.md` and `local-result.json` with **`LOCAL_REVIEW_VERIFIED`**. `LOCAL_PREPARED` proves preparation only; `BLOCKED` indicates a missing dependency, credential, model, or valid tool result.
 
-No local result is a hosted PASS or publication receipt. The PR head can move after the snapshot; the local report remains about its recorded SHA. To publish through the original commit-rechecking path, dispatch the hosted workflow. Local directories can include agent caches/logs, so treat them as private; they are ignored by Git and never uploaded automatically.
+No local result is a hosted PASS or publication receipt. The PR head can move after the snapshot; the local report remains about its recorded SHA. To get a review on GitHub, use the reviewer's PR trigger. Local directories can include agent caches/logs, so treat them as private; they are ignored by Git and never uploaded automatically.
 
-| Property | Hosted image workflows | Local runner |
+| Property | GitHub workflows | Local runner |
 | --- | --- | --- |
-| PR selection | Provider label or manual Actions input | `--pr` + optional `--repo`, or synthetic `--fixture` |
-| GitHub authentication | Job-scoped token; maintainer preflight | Existing `gh` login; read-only requests |
-| Inference secrets | Repository/environment secrets | Shell environment, selected credential only |
-| Source | Main image matching dispatch commit | Chosen image or trusted working checkout |
-| Prompt/MCP/fixtures | Common implementation | Reused; native runtime versions can differ |
-| Evidence | Receipts + image + successful publication | Same receipt/check validation; explicitly local status |
-| GitHub writes | Separate publisher after head recheck | None |
+| PR selection | Comment or label on the PR | `--pr` + optional `--repo`, or synthetic `--fixture` |
+| GitHub authentication | Job token; commenter needs write access | Existing `gh` login; read-only requests |
+| Inference secrets | Repository secrets | Shell environment, selected credential only |
+| Source | Main image, PR branch checkout | Chosen image or trusted working checkout |
+| Tools | Agent's own tools plus Serena | Project MCP tools plus restricted Serena |
+| Evidence | None beyond the run log | Receipt/check validation; explicitly local status |
+| GitHub writes | Agent posts comments | None |

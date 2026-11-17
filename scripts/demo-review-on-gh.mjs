@@ -24,39 +24,28 @@ export function createDemoPull(config, provider, { main, pricing }, suffix) {
   return { provider, branch, number: pr.number, url: pr.html_url, head: changed.commit.sha, ...(label ? { label } : { command }) };
 }
 
-// Comment-triggered agents (Claude, Copilot) post their own comments; their workflow run says when they are done.
+// Agents post their own comments; their workflow run (label or comment event) says when they are done.
 function findAgentRun(config, pr) {
   const { workflow } = providers[pr.provider];
-  const { workflow_runs: runs } = config.api(`/repos/${config.repo}/actions/workflows/${workflow}/runs?event=issue_comment&created=%3E%3D${pr.requestedAt}&per_page=30`);
+  const event = pr.label ? 'pull_request' : 'issue_comment';
+  const { workflow_runs: runs } = config.api(`/repos/${config.repo}/actions/workflows/${workflow}/runs?event=${event}&created=%3E%3D${pr.requestedAt}&per_page=30`);
   const run = runs.find(item => item.status === 'completed' && item.conclusion !== 'skipped');
   if (run && run.conclusion !== 'success') throw new Error(`${pr.provider} review ${run.conclusion}: ${run.html_url}`);
   return run;
-}
-
-// The OpenCode pipeline publishes a marked review of the exact head from its separate publish job.
-function findPublishedReview(config, pr) {
-  const reviews = config.api(`/repos/${config.repo}/pulls/${pr.number}/reviews?per_page=100`);
-  return reviews.find(item => item.user?.login === 'github-actions[bot]' && item.commit_id === pr.head &&
-    item.body?.startsWith(`<!-- ai-review-demo:${pr.provider}:${pr.head}:`));
 }
 
 export async function awaitReviews(config, manifest, save, { sleep = delay, now = Date.now } = {}) {
   const started = now();
   while (now() - started < config.timeout) {
     for (const pr of manifest.pulls.filter(item => !item.review)) {
-      if (pr.command) {
-        const run = findAgentRun(config, pr);
-        if (run) { pr.review = pr.url; pr.run = run.html_url; console.log(`${pr.provider}: ${pr.url} (${run.html_url})`); await save(); }
-      } else {
-        const review = findPublishedReview(config, pr);
-        if (review) { pr.review = review.html_url; console.log(`${pr.provider}: ${pr.review}`); await save(); }
-      }
+      const run = findAgentRun(config, pr);
+      if (run) { pr.review = pr.url; pr.run = run.html_url; console.log(`${pr.provider}: ${pr.url} (${run.html_url})`); await save(); }
     }
     if (manifest.pulls.every(pr => pr.review)) return;
     console.log(`Waiting for: ${manifest.pulls.filter(pr => !pr.review).map(pr => pr.provider).join(', ')}. Actions: https://github.com/${config.repo}/actions`);
     await sleep(15_000);
   }
-  throw new Error('Timed out waiting for PR reviews. Check Actions for auth, model access, image, or evidence failures. Existing PR URLs are saved in the manifest; re-request the review (comment or label) after fixing the cause.');
+  throw new Error('Timed out waiting for PR reviews. Check Actions for auth, model access or image failures. Existing PR URLs are saved in the manifest; re-request the review (comment or label) after fixing the cause.');
 }
 
 export async function demo(config) {
@@ -82,11 +71,11 @@ export async function demo(config) {
     const pr = createDemoPull(config, provider, snapshot, suffix);
     manifest.pulls.push(pr); await save();
     console.log(`${provider}: ${pr.url}`);
+    pr.requestedAt = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
     if (pr.label) {
       config.api(`/repos/${config.repo}/issues/${pr.number}/labels`, { labels: [pr.label] });
       pr.labeled = true;
     } else {
-      pr.requestedAt = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
       config.api(`/repos/${config.repo}/issues/${pr.number}/comments`, { body: pr.command });
       pr.commented = true;
     }

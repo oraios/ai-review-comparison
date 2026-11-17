@@ -6,7 +6,7 @@
 COPILOT_GITHUB_TOKEN=your-personal-copilot-token
 ```
 
-**Trigger.** Start a PR conversation comment or an inline review comment with `/copilot`:
+**Trigger.** Start a PR conversation comment, an inline review comment or the text of a submitted review with `/copilot`:
 
 ```text
 /copilot Review this PR.
@@ -15,7 +15,7 @@ COPILOT_GITHUB_TOKEN=your-personal-copilot-token
 
 The demo posts the first comment for you. `@copilot` is not used because GitHub routes it to its own cloud agent, which pushes commits. [Workflow](../../.github/workflows/review-copilot.yml)
 
-**How it runs.** The workflow mirrors Claude Code Action's interactive mode. It accepts commands only from people with write access, reacts with 👀, checks out the PR head and runs Copilot CLI in the project image with Serena MCP. Copilot reads the PR and discussion with `gh`, may run the project's checks, and posts a summary plus inline findings. In an inline thread it replies in that thread. The job token can comment but not push, and `git push` is denied to the CLI.
+**How it runs.** The workflow mirrors Claude Code Action's interactive mode. It accepts commands only from people with write access, reacts with 👀, checks out the PR head and runs Copilot CLI in the project image with Serena MCP. Copilot reads the PR and discussion with `gh`, may run the project's checks, and posts a summary plus inline findings. In an inline thread it replies in that thread; a request in a review body is answered in the PR conversation. The job token can comment but not push, and `git push` is denied to the CLI.
 
 **Not native Copilot code review.** GitHub's built-in reviewer (request `@copilot` as a reviewer) can now customize its environment with `copilot-code-review.yml` and use repository MCP settings. It does not answer replies, and running it inside the project image with Serena is unverified. [Copilot code review](https://docs.github.com/en/copilot/how-tos/copilot-on-github/use-copilot-agents/copilot-code-review)
 
