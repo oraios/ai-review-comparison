@@ -33,7 +33,7 @@ npm run demo-review-on-gh
 ```
 
 1. Setup checks the selected credentials, enables the workflows, creates the `review:opencode` label and uploads the selected secrets. It waits for the successful image build at the current `main` SHA.
-2. The demo creates one PR per selected reviewer and requests its review: an `@claude` or `/copilot` comment, or the OpenCode label. It writes the PR, run and review URLs under `artifacts/github-demo-*.json`. A second invocation creates a fresh set of PRs.
+2. The demo creates one PR per selected reviewer and requests its review: a `/claude` or `/copilot` comment, or the OpenCode label. It writes the PR, run and review URLs under `artifacts/github-demo-*.json`. A second invocation creates a fresh set of PRs.
 
 To preview either command, append `-- --dry-run`. Use `-- --no-wait` with the demo to return after requesting the reviews. Both commands accept `--env PATH`, `--repo OWNER/REPO`, `--reviewers NAME,NAME` and `--timeout-minutes N`. Rerun setup after pushing a new main revision or changing credentials. A push whose last commit message contains `[skip-image-build]` does not rebuild the image; setup and the demo then use the last image published from `main`.
 

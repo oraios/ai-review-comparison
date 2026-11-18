@@ -33,15 +33,18 @@ for (const file of files) {
   assert.ok(agent.steps.some(step => step.run?.includes('safe.directory')), 'Git in the job container must trust the checkout.');
   assert.equal(agent.permissions.contents, 'read', 'Reviewers answer and comment; they do not push.');
   assert.equal(agent.permissions['pull-requests'], 'write');
-  assert.ok(workflow.on.issue_comment && workflow.on.pull_request_review_comment, file);
+  assert.ok(workflow.on.issue_comment && workflow.on.pull_request_review_comment && workflow.on.pull_request_review, file);
   assert.ok(!workflow.on.workflow_dispatch, file);
   assert.equal(Boolean(workflow.on.pull_request), Boolean(label), `${file}: only labelled reviewers listen to pull_request`);
   if (label) assert.ok(agent.if.includes(`github.event.label.name == '${label}'`));
+  // Strangers' comments must not start a runner; the in-job checks then require write access.
+  assert.ok(agent.if.includes(`fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association`), `${file}: author association gate`);
   const settings = JSON.parse(await readFile(resolve(root, 'reviewers', name, 'config.json'), 'utf8'));
   if (name === 'claude') {
     const action = agent.steps.find(step => step.uses?.startsWith('anthropics/claude-code-action@'));
-    assert.ok(!action.with.prompt, 'Without a prompt the action reads the @claude comment.');
-    assert.ok(agent.if.includes("'@claude'") && workflow.on.pull_request_review);
+    assert.ok(!action.with.prompt, 'Without a prompt the action reads the /claude comment.');
+    assert.ok(agent.if.includes("'/claude'") && !agent.if.includes('@claude') && action.with.trigger_phrase === '/claude');
+    assert.ok(workflow.on.pull_request_review);
     assert.ok(action.with.claude_args.includes(`--model ${settings.model} --effort ${settings.effort} `));
   } else if (name === 'copilot') {
     assert.ok(agent.if.includes("'/copilot'") && workflow.on.pull_request_review);
@@ -51,6 +54,8 @@ for (const file of files) {
     // opencode github run checks write access and reacts itself.
     assert.ok(agent.if.includes("'/oc'") && agent.if.includes("'/opencode'"));
     assert.ok(text.includes('run: opencode github run') && text.includes("USE_GITHUB_TOKEN: 'true'"));
+    // The native agent rejects pull_request_review; that path checks write access itself.
+    assert.ok(text.includes('opencode run --model') && text.includes('/permission'));
     assert.ok(text.includes(`MODEL: ${settings.model}`) && text.includes('edit: "deny"'));
   }
 }

@@ -1,6 +1,6 @@
 # Pull request reviews on GitHub
 
-You run as a pull request reviewer through `opencode github run`. Your final answer is posted as a comment in the PR conversation.
+You run as a pull request reviewer. Through `opencode github run`, your final answer is posted as a comment in the PR conversation; when the prompt tells you to answer with `gh pr comment`, do that instead.
 
 - Do not edit, create or delete files in the repository, and do not commit or push. Anything left changed in the working tree is committed and pushed by the agent, which fails because this job cannot push.
 - Navigate code with the Serena tools. Run the project's checks (`npm ci`, `npm test`, `npm run check`, `npm run smoke`) when they help; their outputs are ignored by Git.

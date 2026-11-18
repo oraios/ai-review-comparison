@@ -1,6 +1,7 @@
-# Claude Code Action in its native interactive mode: mention @claude in a PR comment,
+# Claude Code Action in its native interactive mode: write /claude in a PR comment,
 # a review comment or a review. The comment is the prompt; the action checks write access,
-# checks out the PR head and answers in the same conversation or thread.
+# checks out the PR head and answers in the same conversation or thread. The trigger is
+# /claude (trigger_phrase) rather than the default @claude, which would ping a GitHub user.
 name: Review / claude
 on:
   issue_comment:
@@ -16,12 +17,14 @@ concurrency:
   cancel-in-progress: false
 jobs:
   claude:
-    # The action ignores comments without @claude itself; this job-level filter (as in the upstream
-    # example workflow) avoids starting a runner and pulling the image for every other comment.
+    # The action ignores comments without the trigger and rejects users without write access
+    # itself. This job-level filter (as in the upstream example workflow) skips those cases before a
+    # runner starts: only owners, organization members and collaborators get past it.
     if: >-
-      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude'))
+      ((github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '/claude')) ||
+       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '/claude')) ||
+       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '/claude'))) &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association || github.event.review.author_association)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -52,6 +55,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
+          trigger_phrase: /claude
           path_to_claude_code_executable: /opt/review-demo/image/agents/node_modules/.bin/claude
           path_to_bun_executable: /opt/review-demo/image/agents/node_modules/.bin/bun
           claude_args: >-

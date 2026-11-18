@@ -172,13 +172,13 @@ test('demo PR uses main, one small JSON diff, and no local git mutations', () =>
 test('comment-triggered reviewers are requested by comment, not label', () => {
   const config = { repo, api: path => path.endsWith('/pulls') ? { number: 9, html_url: 'https://example.test/pr/9' } : { commit: { sha: head } } };
   assert.deepEqual(Object.keys(createDemoPull(config, 'claude', { main, pricing }, 'u')).filter(key => ['label', 'command'].includes(key)), ['command']);
-  assert.equal(createDemoPull(config, 'claude', { main, pricing }, 'u').command, '@claude Review this PR.');
+  assert.equal(createDemoPull(config, 'claude', { main, pricing }, 'u').command, '/claude Review this PR.');
   assert.equal(createDemoPull(config, 'copilot', { main, pricing }, 'u').command, '/copilot Review this PR.');
 });
 
 test('review waiter follows the agent workflow run and ignores skipped runs', async () => {
   let polls = 0, ticks = 0;
-  const manifest = { pulls: [{ provider: 'claude', number: 9, head, url: 'https://example.test/pr/9', command: '@claude Review this PR.', requestedAt: '2026-11-17T00:00:00Z' }] };
+  const manifest = { pulls: [{ provider: 'claude', number: 9, head, url: 'https://example.test/pr/9', command: '/claude Review this PR.', requestedAt: '2026-11-17T00:00:00Z' }] };
   const skipped = { status: 'completed', conclusion: 'skipped', html_url: 'https://example.test/skipped' };
   const done = { status: 'completed', conclusion: 'success', html_url: 'https://example.test/run' };
   const config = { repo, timeout: 100, api: path => {

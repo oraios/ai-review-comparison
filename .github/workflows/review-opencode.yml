@@ -1,13 +1,22 @@
-# OpenCode's native GitHub agent (`opencode github run`, what anomalyco/opencode/github runs)
-# using the CLI pinned in the project image. `/oc` or `/opencode` in a PR comment or inline
-# review comment asks a question; the `review:opencode` label requests a review. The agent
-# checks write access, reacts, checks out the PR branch and answers in the PR conversation.
+# OpenCode reviewer. Two paths share one job, image and OpenCode config:
+#
+# - Native: `opencode github run` (what the upstream anomalyco/opencode/github action runs), using
+#   the CLI pinned in the project image, for `/oc` in a PR conversation comment and for the
+#   `review:opencode` label. It checks write access, reacts, checks out the PR branch, builds the
+#   prompt from the PR and answers in the PR conversation.
+# - Workaround: plain `opencode run` for `/oc` in an inline review thread or in the text of a
+#   submitted review. The native agent rejects submitted reviews and answers inline-thread
+#   questions with a top-level comment (true up to v1.19.6). This path repeats the write-access
+#   check and reaction, passes the thread's file, line and diff, and has the agent answer in the
+#   thread (or, for a review, in the conversation).
 name: Review / opencode
 on:
   issue_comment:
     types: [created]
   pull_request_review_comment:
     types: [created]
+  pull_request_review:
+    types: [submitted]
   pull_request:
     types: [labeled]
 permissions:
@@ -17,10 +26,13 @@ concurrency:
   cancel-in-progress: false
 jobs:
   opencode:
+    # Labels require triage access. Comments and reviews start a runner only for owners,
+    # organization members and collaborators; write access is then checked in the job.
     if: >-
       (github.event_name == 'pull_request' && github.event.label.name == 'review:opencode') ||
-      ((github.event.issue.pull_request || github.event_name == 'pull_request_review_comment') &&
-        (contains(github.event.comment.body, '/oc') || contains(github.event.comment.body, '/opencode')))
+      ((github.event.issue.pull_request || github.event_name == 'pull_request_review_comment' || github.event_name == 'pull_request_review') &&
+        (contains(github.event.comment.body || github.event.review.body, '/oc') || contains(github.event.comment.body || github.event.review.body, '/opencode')) &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association || github.event.review.author_association))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -36,8 +48,17 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+      OPENCODE_CONFIG: /tmp/opencode.json
+      OPENCODE_DISABLE_AUTOUPDATE: 'true'
+      NATIVE: ${{ github.event_name == 'issue_comment' || github.event_name == 'pull_request' }}
     steps:
+      # The native agent checks out the PR branch itself; the workaround path needs the PR head.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.NATIVE != 'true' && format('refs/pull/{0}/head', github.event.pull_request.number) || '' }}
       - name: Trust the checkout inside the container
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Configure OpenCode Go, Serena and review instructions
@@ -54,12 +75,38 @@ jobs:
                         "--enable-web-dashboard", "false", "--open-web-dashboard", "false",
                         "--enable-gui-log-window", "false", "--log-level", "ERROR"]}}
           }' > /tmp/opencode.json
-      - name: OpenCode GitHub agent
+      - name: OpenCode GitHub agent (native)
+        if: env.NATIVE == 'true'
         env:
           MODEL: opencode-go/kimi-k3
           USE_GITHUB_TOKEN: 'true'
-          GITHUB_TOKEN: ${{ github.token }}
-          OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
-          OPENCODE_CONFIG: /tmp/opencode.json
-          OPENCODE_DISABLE_AUTOUPDATE: 'true'
         run: opencode github run
+      - name: OpenCode in an inline thread or review (workaround)
+        if: env.NATIVE != 'true'
+        env:
+          REQUESTER: ${{ github.event.comment.user.login || github.event.review.user.login }}
+          REQUEST: ${{ github.event.comment.body || github.event.review.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          FILE: ${{ github.event.comment.path }}
+          LINE: ${{ github.event.comment.line || github.event.comment.original_line }}
+          DIFF_HUNK: ${{ github.event.comment.diff_hunk }}
+        run: |
+          permission=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$REQUESTER/permission" --jq .permission)
+          case "$permission" in admin|maintain|write) ;; *) echo "$REQUESTER has $permission access; write access is required."; exit 1 ;; esac
+          repo_pr="$GITHUB_REPOSITORY PR #$PR_NUMBER"
+          if [ -n "$COMMENT_ID" ]; then
+            # Inline thread: acknowledge like the native agent, then reply in the same thread.
+            gh api "repos/$GITHUB_REPOSITORY/pulls/comments/$COMMENT_ID/reactions" -f content=eyes --silent
+            where="$REQUESTER asked the request below in an inline review thread on $FILE line $LINE. Diff context:
+          $DIFF_HUNK
+          Answer in that thread: gh api repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/comments/$COMMENT_ID/replies -f body=..."
+          else
+            # Submitted review: GitHub has no reactions on reviews; answer in the conversation.
+            where="$REQUESTER submitted a review whose text contains the request below. Answer in the PR conversation with gh pr comment $PR_NUMBER and post line-specific findings as inline comments as your instructions describe."
+          fi
+          prompt="You are reviewing $repo_pr; its head is checked out. Read the PR, diff and discussion with gh (gh pr view $PR_NUMBER --comments, gh pr diff $PR_NUMBER).
+          $where
+
+          $REQUEST"
+          opencode run --model opencode-go/kimi-k3 "$prompt"
